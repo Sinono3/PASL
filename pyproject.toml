@@ -24,13 +24,18 @@ dependencies = [
     "ffmpeg>=1.4",
     "tensorboardx>=2.6.2.2",
     "pillow==9.4",
-    "onnxruntime==1.14",
+    "onnxruntime==1.14.1"
 ]
 
 [tool.uv.sources]
+# Use custom index for PyTorch to use CUDA 11.3 (only on Linux and Windows)
 torch = [
-  { index = "pytorch-cu113" },
+  { index = "pytorch-cu113", marker = "sys_platform == 'linux' or sys_platform == 'win32'"  },
 ]
+torchvision = [
+  { index = "pytorch-cu113", marker = "sys_platform == 'linux' or sys_platform == 'win32'"  },
+]
+# Use pytorch3d v0.7.3
 pytorch3d = { git = "https://github.com/facebookresearch/pytorch3d", rev = "e245560abb8f019a24880faf7557ed3b2eec6cc0A" }
 
 [[tool.uv.index]]
