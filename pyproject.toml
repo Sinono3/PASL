@@ -17,14 +17,15 @@ dependencies = [
     "scikit-image>=0.19.3",
     "tqdm>=4.67.1",
     "yacs>=0.1.8",
-    "torch==1.12.1",
-    "torchvision==0.13.1",
-    "pytorch3d",
+    "torch>=2.0.0",
+    "torchvision>=0.15.2",
     "gradio==3.34.0",
     "ffmpeg>=1.4",
     "tensorboardx>=2.6.2.2",
     "pillow==9.4",
-    "onnxruntime==1.14.1"
+    "onnxruntime==1.14.1",
+    # "pytorch3d",
+    "einops>=0.8.1",
 ]
 
 [tool.uv.sources]
@@ -36,7 +37,7 @@ torchvision = [
   { index = "pytorch-cu113", marker = "sys_platform == 'linux' or sys_platform == 'win32'"  },
 ]
 # Use pytorch3d v0.7.3
-pytorch3d = { git = "https://github.com/facebookresearch/pytorch3d", rev = "e245560abb8f019a24880faf7557ed3b2eec6cc0A" }
+# pytorch3d = { git = "https://github.com/facebookresearch/pytorch3d", rev = "e245560abb8f019a24880faf7557ed3b2eec6cc0A" }
 
 [[tool.uv.index]]
 name = "pytorch-cu113"

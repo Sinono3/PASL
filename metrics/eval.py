@@ -26,42 +26,41 @@ from core import utils_lm
 import math
 import network
 
+
 @torch.no_grad()
 def calculate_metrics(nets, args, step, mode):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    # read the testing image
+    loader_eval = get_eval_loader_vgg(
+        root=args.val_img_dir,
+        train_data=args.dataset,
+        img_size=args.img_size,
+        batch_size=args.val_batch_size,
+        imagenet_normalize=False,
+        drop_last=True,
+        mode=args.mode,
+    )
 
-
-
-    #read the testing image
-    loader_eval = get_eval_loader_vgg(root=args.val_img_dir,
-                                      train_data=args.dataset,
-                                      img_size=args.img_size,
-                                      batch_size=args.val_batch_size,
-                                      imagenet_normalize=False,
-                                      drop_last=True, mode = args.mode)
-    iter = '%s' % (step)
+    iter = "%s" % (step)
     if not os.path.exists(os.path.join(args.eval_dir, iter)):
-
         path_fake = os.path.join(args.eval_dir, iter)
         shutil.rmtree(path_fake, ignore_errors=True)
         os.makedirs(path_fake)
 
-        path_real = os.path.join(args.eval_dir, iter + 'real')
+        path_real = os.path.join(args.eval_dir, iter + "real")
         shutil.rmtree(path_real, ignore_errors=True)
         os.makedirs(path_real)
 
-        path_real_lm = os.path.join(args.eval_dir, iter + 'lm')
+        path_real_lm = os.path.join(args.eval_dir, iter + "lm")
         shutil.rmtree(path_real_lm, ignore_errors=True)
         os.makedirs(path_real_lm)
 
-        path_ground_truth_lm = os.path.join(args.eval_dir, iter + 'ground_truth')
+        path_ground_truth_lm = os.path.join(args.eval_dir, iter + "ground_truth")
         shutil.rmtree(path_ground_truth_lm, ignore_errors=True)
         os.makedirs(path_ground_truth_lm)
 
-
-
-        print('Generating images ...')
+        print("Generating images ...")
         for i, x_src in enumerate(tqdm(loader_eval, total=len(loader_eval))):
             lm = x_src[4]
             lm = lm.to(device)
@@ -71,14 +70,13 @@ def calculate_metrics(nets, args, step, mode):
             x2_target = x2_target.to(device)
             # gt = x_src[5]
             # gt = gt.to(device)
-            N = x2_target_lm.size(0) #batch-size
+            N = x2_target_lm.size(0)  # batch-size
             if args.masks:
                 masks = x2_target_lm
             else:
                 masks = None
 
             for j in range(args.num_outs_per_domain):
-
                 x1_source = x_src[0]
                 x1_source = x1_source.to(device)
 
@@ -88,7 +86,7 @@ def calculate_metrics(nets, args, step, mode):
 
                 # save generated images to calculate FID later
                 from torch.nn.functional import cosine_similarity
-                #------------------------------------------------------------
+                # ------------------------------------------------------------
                 # csim = 0
                 # for k in range(16):
                 #     f1 = x_fake[k].flatten()
@@ -112,21 +110,27 @@ def calculate_metrics(nets, args, step, mode):
                 for k in range(N):
                     filename = os.path.join(
                         path_fake,
-                        '%.4i_%.2i.png' % (i * args.val_batch_size + (k + 1), j + 1))
+                        "%.4i_%.2i.png" % (i * args.val_batch_size + (k + 1), j + 1),
+                    )
                     filename2 = os.path.join(
                         path_real,
-                        '%.4i_%.2i.png' % (i * args.val_batch_size + (k + 1), j + 1))
+                        "%.4i_%.2i.png" % (i * args.val_batch_size + (k + 1), j + 1),
+                    )
                     filename3 = os.path.join(
                         path_real_lm,
-                        '%.4i_%.2i.png' % (i * args.val_batch_size + (k + 1), j + 1))
+                        "%.4i_%.2i.png" % (i * args.val_batch_size + (k + 1), j + 1),
+                    )
                     filename4 = os.path.join(
                         path_ground_truth_lm,
-                        '%.4i_%.2i.png' % (i * args.val_batch_size + (k + 1), j + 1))
+                        "%.4i_%.2i.png" % (i * args.val_batch_size + (k + 1), j + 1),
+                    )
 
                     utils_lm.save_image(x_fake[k], ncol=1, filename=filename)
                     utils_lm.save_image(x1_source[k], ncol=1, filename=filename2)
                     utils_lm.save_image(x2_target_lm[k], ncol=1, filename=filename3)
                     utils_lm.save_image(x2_target[k], ncol=1, filename=filename4)
+    else:
+        print("Output directory already exists. Aborting.")
 
     #     calculate_fid_for_all_tasks(args, step=step, mode=mode)
     #     calculate_csim_for_all_tasks(args, step=step, mode=mode)
@@ -137,6 +141,7 @@ def calculate_metrics(nets, args, step, mode):
     #     calculate_csim_for_all_tasks(args, step=step, mode=mode)
     #     calculate_ssim_for_all_tasks(args, step=step, mode=mode)
     #     #calculate_isim_for_all_tasks(args, step=step, mode=mode)
+
 
 # def calculate_isim_for_all_tasks(args, step, mode):
 
@@ -221,24 +226,18 @@ def calculate_metrics(nets, args, step, mode):
 #     utils_lm.save_json(csim_3_values, filename3)
 
 
-
-
-
 def calculate_csim_for_all_tasks(args, step, mode):
-
-    iter = '%s' % (step)
-    path_real = os.path.join(args.eval_dir, iter + 'ground_truth')
+    iter = "%s" % (step)
+    path_real = os.path.join(args.eval_dir, iter + "ground_truth")
     path_fake = os.path.join(args.eval_dir, iter)
-    path_source = os.path.join(args.eval_dir, iter + 'real')
-
+    path_source = os.path.join(args.eval_dir, iter + "real")
 
     paths = [path_real, path_fake, path_source]
 
     img_size = args.img_size
     batch_size = args.val_batch_size
-    print('Calculating CSIM given paths %s and %s...' % (paths[0], paths[1]))
+    print("Calculating CSIM given paths %s and %s..." % (paths[0], paths[1]))
     loader = get_eval_loader_2(paths, img_size, batch_size, imagenet_normalize=False)
-
 
     csim_1_values = OrderedDict()
     csim_2_values = OrderedDict()
@@ -247,7 +246,9 @@ def calculate_csim_for_all_tasks(args, step, mode):
     csim_2 = 0
     csim_3 = 0
     print("Loading Arcface model.....")
-    BACKBONE_RESUME_ROOT = 'FR_Pretrained_Test/Pretrained/ms1m_ir50/backbone_ir50_ms1m_epoch120.pth'
+    BACKBONE_RESUME_ROOT = (
+        "FR_Pretrained_Test/Pretrained/ms1m_ir50/backbone_ir50_ms1m_epoch120.pth"
+    )
 
     INPUT_SIZE = [112, 112]
     arcface = IR_50(INPUT_SIZE)
@@ -259,10 +260,7 @@ def calculate_csim_for_all_tasks(args, step, mode):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     criterion_id = arcface.to(device)
 
-
     for x in tqdm(loader, total=len(loader)):
-
-
         x2_target = x[0]
         x_fake = x[1]
         x1_source = x[2]
@@ -271,9 +269,15 @@ def calculate_csim_for_all_tasks(args, step, mode):
         x1_source = x1_source.to(device)
         # gt = gt.to(device)
 
-        x1_source = nn.functional.interpolate(x1_source[:, :, :, :], size=(112, 112), mode='bilinear')
-        x_fake = nn.functional.interpolate(x_fake[:, :, :, :], size=(112, 112), mode='bilinear')
-        x2_target = nn.functional.interpolate(x2_target[:, :, :, :], size=(112, 112), mode='bilinear')
+        x1_source = nn.functional.interpolate(
+            x1_source[:, :, :, :], size=(112, 112), mode="bilinear"
+        )
+        x_fake = nn.functional.interpolate(
+            x_fake[:, :, :, :], size=(112, 112), mode="bilinear"
+        )
+        x2_target = nn.functional.interpolate(
+            x2_target[:, :, :, :], size=(112, 112), mode="bilinear"
+        )
         criterion_id.eval()
         with torch.torch.no_grad():
             source_embs = criterion_id(x1_source)
@@ -291,62 +295,64 @@ def calculate_csim_for_all_tasks(args, step, mode):
         output_3 = cos(source_embs, target_embs)
         csim_3 += torch.mean(output_3)
 
-
     csim_1 = csim_1 / len(loader)
     csim_2 = csim_2 / len(loader)
     csim_3 = csim_3 / len(loader)
 
-    csim_1_values['CSIM_source_fake_%s/%s' % (mode, iter)] = csim_1.item()
-    csim_2_values['CSIM_target_fake_%s/%s' % (mode, iter)] = csim_2.item()
-    csim_3_values['CSIM_target_source_%s/%s' % (mode, iter)] = csim_3.item()
-    filename = os.path.join(args.eval_dir, 'CSIM_source_fake_%.5i_%s.json' % (step, mode))
-    filename2 = os.path.join(args.eval_dir, 'CSIM_target_fake_%.5i_%s.json' % (step, mode))
-    filename3 = os.path.join(args.eval_dir, 'CSIM_target_source_%.5i_%s.json' % (step, mode))
+    csim_1_values["CSIM_source_fake_%s/%s" % (mode, iter)] = csim_1.item()
+    csim_2_values["CSIM_target_fake_%s/%s" % (mode, iter)] = csim_2.item()
+    csim_3_values["CSIM_target_source_%s/%s" % (mode, iter)] = csim_3.item()
+    filename = os.path.join(
+        args.eval_dir, "CSIM_source_fake_%.5i_%s.json" % (step, mode)
+    )
+    filename2 = os.path.join(
+        args.eval_dir, "CSIM_target_fake_%.5i_%s.json" % (step, mode)
+    )
+    filename3 = os.path.join(
+        args.eval_dir, "CSIM_target_source_%.5i_%s.json" % (step, mode)
+    )
     utils_lm.save_json(csim_1_values, filename)
     utils_lm.save_json(csim_2_values, filename2)
     utils_lm.save_json(csim_3_values, filename3)
 
 
-
-
-
 def calculate_fid_for_all_tasks(args, step, mode):
-    print('Calculating FID for all tasks...')
+    print("Calculating FID for all tasks...")
     fid_values = OrderedDict()
-    iter = '%s' % (step)
+    iter = "%s" % (step)
     # path_real = os.path.join(args.eval_dir, iter + 'ground_truth')
-    path_source = os.path.join(args.eval_dir, iter + 'real')
+    path_source = os.path.join(args.eval_dir, iter + "real")
     path_fake = os.path.join(args.eval_dir, iter)
-    print('Calculating FID for %s...' % iter)
+    print("Calculating FID for %s..." % iter)
     fid_value = calculate_fid_given_paths(
         paths=[path_source, path_fake],
         img_size=args.img_size,
-        batch_size=args.val_batch_size)
-    fid_values['FID_%s/%s' % (mode, iter)] = fid_value
+        batch_size=args.val_batch_size,
+    )
+    fid_values["FID_%s/%s" % (mode, iter)] = fid_value
 
     # calculate the average FID for all tasks
     fid_mean = 0
     for _, value in fid_values.items():
         fid_mean += value / len(fid_values)
-    fid_values['FID_%s/mean' % mode] = fid_mean
+    fid_values["FID_%s/mean" % mode] = fid_mean
 
     # report FID values
-    filename = os.path.join(args.eval_dir, 'FID_%.5i_%s.json' % (step, mode))
+    filename = os.path.join(args.eval_dir, "FID_%.5i_%s.json" % (step, mode))
     utils_lm.save_json(fid_values, filename)
 
+
 def calculate_ssim_for_all_tasks(args, step, mode):
-
-    iter = '%s' % (step)
-    path_real = os.path.join(args.eval_dir, iter + 'ground_truth')
+    iter = "%s" % (step)
+    path_real = os.path.join(args.eval_dir, iter + "ground_truth")
     path_fake = os.path.join(args.eval_dir, iter)
-    path_source = os.path.join(args.eval_dir, iter + 'real')
-
+    path_source = os.path.join(args.eval_dir, iter + "real")
 
     paths = [path_real, path_fake, path_source]
 
     img_size = args.img_size
     batch_size = args.val_batch_size
-    print('Calculating SSIM given paths %s and %s...' % (paths[0], paths[1]))
+    print("Calculating SSIM given paths %s and %s..." % (paths[0], paths[1]))
     loader = get_eval_loader_2(paths, img_size, batch_size, imagenet_normalize=False)
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -354,9 +360,7 @@ def calculate_ssim_for_all_tasks(args, step, mode):
     ssim_2 = 0
     metric = SSIM()
 
-
     for x in tqdm(loader, total=len(loader)):
-
         x2_target = x[0]
         x_fake = x[1]
 
@@ -365,22 +369,18 @@ def calculate_ssim_for_all_tasks(args, step, mode):
 
         ssim_2 += metric(x_fake, x2_target).item()
 
-
-
-
     ssim_2 = ssim_2 / len(loader)
-    ssim_2_values['SSIM_target_fake_%s/%s' % (mode, iter)] = ssim_2
-    filename2 = os.path.join(args.eval_dir, 'SSIM_target_fake_%.5i_%s.json' % (step, mode))
+    ssim_2_values["SSIM_target_fake_%s/%s" % (mode, iter)] = ssim_2
+    filename2 = os.path.join(
+        args.eval_dir, "SSIM_target_fake_%.5i_%s.json" % (step, mode)
+    )
     utils_lm.save_json(ssim_2_values, filename2)
 
 
-
-
-
 class SSIM(object):
-    '''
+    """
     modified from https://github.com/jorge-pessoa/pytorch-msssim
-    '''
+    """
 
     def __init__(self, des="structural similarity index"):
         self.des = des
@@ -389,7 +389,12 @@ class SSIM(object):
         return "SSIM"
 
     def gaussian(self, w_size, sigma):
-        gauss = torch.Tensor([math.exp(-(x - w_size // 2) ** 2 / float(2 * sigma ** 2)) for x in range(w_size)])
+        gauss = torch.Tensor(
+            [
+                math.exp(-((x - w_size // 2) ** 2) / float(2 * sigma**2))
+                for x in range(w_size)
+            ]
+        )
         return gauss / gauss.sum()
 
     def create_window(self, w_size, channel=1):
@@ -431,9 +436,15 @@ class SSIM(object):
         mu2_sq = mu2.pow(2)
         mu1_mu2 = mu1 * mu2
 
-        sigma1_sq = F.conv2d(y_pred * y_pred, window, padding=padd, groups=channel) - mu1_sq
-        sigma2_sq = F.conv2d(y_true * y_true, window, padding=padd, groups=channel) - mu2_sq
-        sigma12 = F.conv2d(y_pred * y_true, window, padding=padd, groups=channel) - mu1_mu2
+        sigma1_sq = (
+            F.conv2d(y_pred * y_pred, window, padding=padd, groups=channel) - mu1_sq
+        )
+        sigma2_sq = (
+            F.conv2d(y_true * y_true, window, padding=padd, groups=channel) - mu2_sq
+        )
+        sigma12 = (
+            F.conv2d(y_pred * y_true, window, padding=padd, groups=channel) - mu1_mu2
+        )
 
         C1 = (0.01 * L) ** 2
         C2 = (0.03 * L) ** 2
