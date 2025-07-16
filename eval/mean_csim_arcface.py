@@ -1,13 +1,14 @@
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
+from torchvision import transforms as T
 from tqdm import tqdm
 
 from eval.utils import EvalDataset, load_ir50
 
 device = torch.device("cpu")
-if torch.backends.mps.is_available():
-    device = torch.device("mps")
+# if torch.backends.mps.is_available():
+#     device = torch.device("mps")
 if torch.cuda.is_available():
     device = torch.device("cuda:0")
 
@@ -16,19 +17,28 @@ def calculate_csim_for_all_tasks(fake_dir, gt_dir, real_dir):
     criterion = load_ir50(
         "Arcface", "./weights/arcface/backbone_ir50_ms1m_epoch63.pth", device
     )
+    criterion.eval()
+
     dataset = EvalDataset(fake_dir, gt_dir, real_dir)
-    dataloader = DataLoader(dataset, batch_size=64, num_workers=4)
+    dataloader = DataLoader(dataset, batch_size=8, num_workers=4)
 
     fake_gt_csim_list = []
     fake_real_csim_list = []
     real_gt_csim_list = []
+
+    resize = T.Resize((112, 112), T.InterpolationMode.BILINEAR, antialias=True)
+
     # 遍历两个文件夹中的图像并计算旋转误差
-    for fake_img, gt_img, real_img in tqdm(dataloader, desc="Processing"):
+    for _label, fake_img, gt_img, real_img in tqdm(dataloader, desc="Processing"):
         fake_img = fake_img.to(device, torch.float32)
         gt_img = gt_img.to(device, torch.float32)
         real_img = real_img.to(device, torch.float32)
 
-        criterion.eval()
+        # Resize and normalize image to [0-1]
+        fake_img = resize(fake_img) / 255.0
+        gt_img = resize(gt_img) / 255.0
+        real_img = resize(real_img) / 255.0
+
         with torch.torch.no_grad():
             fake_embs = criterion(fake_img)
             gt_embs = criterion(gt_img)

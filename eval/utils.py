@@ -1,11 +1,13 @@
 import os
+
 import torch
 from torch.utils.data.dataset import Dataset
 from torchvision.io import read_image
-import torchvision.transforms as T
+
 from models.ir50 import IR_50
 
 
+# Loads the eval images. RETURNS IN BGR
 class EvalDataset(Dataset):
     def __init__(self, fake_dir, gt_dir, real_dir):
         self.fake_dir = fake_dir
@@ -35,7 +37,9 @@ class EvalDataset(Dataset):
         gt_img: torch.Tensor = read_image(gt_img_path)
         real_img: torch.Tensor = read_image(real_img_path)
 
-        # (RGB, H, W) -> (BGR, H, W) (to simulate cv.imread)
+        # (RGB, H, W) -> (BGR, H, W)
+        # The models expect BGR (they were trained with images from cv.imread,
+        # which outputs in BGR)
         fake_img = fake_img[[2, 1, 0], :, :]
         gt_img = gt_img[[2, 1, 0], :, :]
         real_img = real_img[[2, 1, 0], :, :]
@@ -49,7 +53,6 @@ def load_ir50(label: str, path: os.PathLike, device: torch.device):
     print(f"Loading {label} model (MS1M-IR50) at '{path}'...")
     if os.path.isfile(path):
         model.load_state_dict(torch.load(path, map_location=device))
-        print(f"Loaded {label} model")
     else:
         raise Exception(f"Model not found at '{path}'")
 
