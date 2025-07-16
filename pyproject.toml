@@ -26,6 +26,7 @@ dependencies = [
     "onnxruntime==1.14.1",
     # "pytorch3d",
     "einops>=0.8.1",
+    "jaxtyping>=0.2.19",
 ]
 
 [tool.uv.sources]
