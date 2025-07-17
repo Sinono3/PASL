@@ -8,36 +8,23 @@ http://creativecommons.org/licenses/by-nc/4.0/ or send a letter to
 Creative Commons, PO Box 1866, Mountain View, CA 94042, USA.
 """
 
-import matplotlib.pyplot as plt
-from pathlib import Path
-from itertools import chain
 import os
-import random
+from itertools import chain
+from pathlib import Path
 
-from munch import Munch
-from PIL import Image
-import numpy as np
-
-import torch
-from torch.utils import data
-from torch.utils.data.sampler import WeightedRandomSampler
-from torchvision import transforms
-from torchvision.datasets import ImageFolder
 import cv2
-
-import os, sys
-from time import time
-from scipy.io import savemat
-import argparse
+import numpy as np
 import torch
+from PIL import Image
+from torch.utils import data
+from torchvision import transforms
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from decalib.deca import DECA
-from decalib.datasets import datasets
-from decalib.utils import util
-from decalib.utils.config import cfg as deca_cfg
-from decalib.utils.tensor_cropper import transform_points
-from decalib.datasets import detectors
+from models.decalib.datasets import datasets, detectors
+from models.decalib.deca import DECA
+from models.decalib.utils import util
+from models.decalib.utils.config import cfg as deca_cfg
+
+DEVICE = "cpu"
 
 
 def listdir(dname):
@@ -87,15 +74,16 @@ class LMDataset(data.Dataset):
     def __init__(
         self, root, transform=None, train_data="mpie", multi=False, test="train"
     ):
-        self.device = "cuda"
+        self.device = DEVICE
         self.deca = DECA(config=deca_cfg, device=self.device)
-        self.face_detector = detectors.FAN()
+        self.face_detector = detectors.FAN(device=self.device)
         self.multi = multi
         self.test = test
+        self.train_data = train_data
+        self.transform = transform
+        self.targets = None
+
         if multi:
-            self.train_data = train_data
-            self.transform = transform
-            self.targets = None
             self.samples = []
             self.samples2 = []
             self.samples3 = []
@@ -121,70 +109,38 @@ class LMDataset(data.Dataset):
                     self.samples9.append(line.split(" ")[8])
 
         else:
-            self.train_data = train_data
-            if self.train_data == "rafd":
-                if self.test == "train":
-                    self.transform = transform
-                    self.targets = None
-                    self.samples = []
-                    self.samples2 = []
-                    with open(root) as F:
-                        for line in F:
-                            line = line.strip("\n")
-                            self.samples.append(line.split(" ")[0])
-                            self.samples2.append(line.split(" ")[1])
+            self.samples = []
+            self.samples_angle = []
+            self.samples2 = []
+            self.samples2_angle = []
+            self.samples3 = []
 
-                else:
-                    self.transform = transform
-                    self.targets = None
-                    self.samples = []
-                    self.samples2 = []
-                    self.samples3 = []
-                    with open(root) as F:
-                        for line in F:
-                            line = line.strip("\n")
-                            self.samples.append(line.split(" ")[0])
-                            self.samples2.append(line.split(" ")[1])
-                            # self.samples3.append(line.split(' ')[2])
+            with open(root) as F:
+                n = 0
+                try:
+                    for line in F:
+                        line = line.strip("\n")
+                        # print(line.split(" "))
+                        self.samples.append(line.split(" ")[0])
+                        self.samples_angle.append(
+                            int(line.split(" ")[0].split("/")[-1].split("_")[2])
+                        )
+                        self.samples2.append(line.split(" ")[1])
+                        self.samples2_angle.append(
+                            int(line.split(" ")[1].split("/")[-1].split("_")[2])
+                        )
+                        try:
+                            gt_path = line.split(" ")[2]
+                            self.samples3.append(gt_path)
+                        except:
+                            self.samples3.append(line.split(" ")[1])
 
-            else:
-                self.transform = transform
-                self.targets = None
-                self.samples = []
-                self.samples_angle = []
-                self.samples2 = []
-                self.samples2_angle = []
-                self.samples3 = []
-                with open(root) as F:
-                    n = 0
-                    try:
-                        for line in F:
-                            line = line.strip("\n")
-                            # print(line.split(" "))
-                            self.samples.append(line.split(" ")[0])
-                            self.samples_angle.append(
-                                int(line.split(" ")[0].split("/")[-1].split("_")[2])
-                            )
-                            self.samples2.append(line.split(" ")[1])
-                            self.samples2_angle.append(
-                                int(line.split(" ")[1].split("/")[-1].split("_")[2])
-                            )
-                            try:
-                                gt_path = line.split(" ")[2]
-                                self.samples3.append(gt_path)
-                            except:
-                                self.samples3.append(line.split(" ")[1])
-
-                    except Exception as e:
-                        n += 1
-                        print("error {} images".format(n))
-                        # raise e
-                        # print(e)
-                        # print(self.samples[-1])
-                        # print(self.samples2[-1])
-                        del self.samples[-1]
-                        del self.samples2[-1]
-                        pass
+                except Exception as e:
+                    n += 1
+                    print("error {} images".format(n))
+                    del self.samples[-1]
+                    del self.samples2[-1]
+                    pass
 
     def __getitem__(self, index):
         if self.multi:
@@ -257,50 +213,10 @@ class LMDataset(data.Dataset):
                 fname3 = fname3_folder
                 name_angle = fname_angle
                 name2_angle = fname2_angle
-
-                # fname = fname.replace('depths_256', 'crop_256')
-                # fname2 = fname2.replace('depths_256', 'crop_256')
-
-                # lm = fname2.split('crop_256')[0] + 'LM_256' +fname2.split('crop_256')[1]
-                # pncc = fname2.split('crop_256')[0] + 'depths_256' +fname2.split('crop_256')[1]
-
-            elif self.train_data == "rafd":
-                fname = fname_folder
-                fname2 = fname2_folder
-                fname = fname.split("\t")[0].replace("\\", "/")
-                fname2 = fname2.replace("\\", "/")
-
-                lm = (
-                    fname2.split("rafd_crop_256")[0]
-                    + "rafd_LM_256"
-                    + fname.split("rafd_crop_256")[1]
-                )
-                pncc = (
-                    fname2.split("rafd_crop_256")[0]
-                    + "rafd_LM_256"
-                    + fname2.split("rafd_crop_256")[1]
-                )
-
-                # if self.test == 'train':
-                #     fname = fname_folder
-                #     fname2 = fname2_folder
-                #     # fname_lm = fname.split('rafd_crop_256')[0] + 'rafd_LM_256' + fname.split('rafd_crop_256')[1]
-                #     # fname_lm2 = fname2.split('rafd_crop_256')[0] + 'rafd_LM_256' + fname2.split('rafd_crop_256')[1]
-                #     fname_lm = fname.split('rafd_crop_256')[0] + 'rafd_pncc_256' + fname.split('rafd_crop_256')[1]
-                #     fname_lm2 = fname2.split('rafd_crop_256')[0] + 'rafd_pncc_256' + fname2.split('rafd_crop_256')[1]
-                #     #print(fname_lm)
-                # else:
-                #     fname = fname2_folder
-                #     fname2 = self.samples3[index]
-                #     fname_lm = fname_folder
-                #     fname_lm2 = fname_folder
-
             elif self.train_data == "vox1":
                 fname = fname_folder
                 fname2 = fname2_folder
-
                 fname = fname.split("\t")[0].replace("\\", "/")
-
                 fname2 = fname2.replace("\\", "/")
 
                 lm = (
@@ -308,37 +224,27 @@ class LMDataset(data.Dataset):
                     + "LM_256"
                     + fname2.split("vox1_full_face_crop_256")[1]
                 )
-                # pncc = '/media/avlab/2tb/RFG_pncc_landmark/new_Vox2/pncc_256' + fname2.split('crop_256')[1]
-                # pncc = fname2.split('crop_256')[0] + 'pncc_256' + fname2.split('crop_256')[1]
             elif self.train_data == "vox2":
                 fname = fname_folder
                 fname2 = fname2_folder
                 fname3 = fname3_folder
                 name_angle = fname_angle
                 name2_angle = fname2_angle
-                # fname = fname.replace('\\','/') #pncc
 
-                # fname2 = fname2.replace('pncc_256','crop_256') #pncc
-                # pncc = fname2.split('crop_256')[0] + 'pncc_256' + fname2.split('crop_256')[1]
                 lm = (
                     fname2.split("crop_256")[0] + "LM_256" + fname2.split("crop_256")[1]
                 )
-                # pncc = fname2.split('crop_256')[0] + 'depth_256' + fname2.split('crop_256')[1]
-                # lm = fname2.split('crop_256')[0] + 'depth_256' + fname2.split('crop_256')[1]
-            # sor = fname.split(",")[0]
-            # flow = fname.split(",")[1]
-            # ref = fname2
 
+            ROOT = "datasets/mpie_lp"
+            fname = os.path.join(ROOT, fname)
+            fname2 = os.path.join(ROOT, fname2)
+            fname3 = os.path.join(ROOT, fname3)
             img = Image.open(fname).convert("RGB")
-            # img_lm = Image.open(pncc).convert('RGB')
             img2 = Image.open(fname2).convert("RGB")
             gt = Image.open(fname3).convert("RGB")
-            # img_lm2 = Image.open(pncc).convert('RGB')
-            # lm = Image.open(lm).convert('RGB')
             img_lm2, lm = get_depth_render(self.deca, self.face_detector, fname, fname2)
             img_lm2 = img_lm2.resize((256, 256))
             img_lm = img_lm2
-            # img_lm2 = img_lm2
 
             flattened_width = img_lm2.width - 20
             flattened_width1 = lm.width - 20
@@ -365,6 +271,7 @@ class LMDataset(data.Dataset):
                 img_lm = self.transform(img_lm)
                 lm = self.transform(lm)
                 gt = self.transform(gt)
+
             return (
                 img,
                 img2,
@@ -375,7 +282,6 @@ class LMDataset(data.Dataset):
                 torch.tensor(name_angle),
                 torch.tensor(name2_angle),
             )
-            # return img, img2, img_lm, img_lm2, lm
 
     def __len__(self):
         return len(self.samples)
@@ -389,7 +295,7 @@ def get_depth_render(deca, face_detector, src_path, ref_path):
         face_detector="fan",
         sample_step=10,
     )
-    device = "cuda"
+    device = DEVICE
     i = 0
     deca_cfg.model.use_tex = False
     deca_cfg.rasterizer_type = "pytorch3d"
@@ -478,30 +384,6 @@ def get_eval_loader_vgg(
     )
 
 
-def get_test_loader_vgg(
-    root,
-    img_size=256,
-    batch_size=32,
-    shuffle=True,
-    num_workers=4,
-    train_data="mpie",
-    multi=False,
-    mode="train",
-):
-    print("Preparing DataLoader for the generation phase...")
-
-    transform = transforms.Compose(
-        [transforms.Resize([img_size, img_size]), transforms.ToTensor()]
-    )
-
-    dataset = LMDataset(
-        root, transform=transform, train_data=train_data, multi=multi, test=mode
-    )
-    return data.DataLoader(
-        dataset=dataset, batch_size=batch_size, num_workers=num_workers, pin_memory=True
-    )
-
-
 def get_eval_loader_2(
     root,
     img_size=256,
@@ -542,69 +424,3 @@ def get_eval_loader_2(
         pin_memory=True,
         drop_last=drop_last,
     )
-
-
-class InputFetcher:
-    def __init__(self, loader, latent_dim=16, mode="", multi=False):
-        self.loader = loader
-        self.latent_dim = latent_dim
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.mode = mode
-        self.multi = multi
-
-    def _fetch_inputs(self):
-        if self.multi:
-            try:
-                x1, x2, x3, x4, x5, x6, x7, x8, x9, x9_lm = next(self.iter)
-            except (AttributeError, StopIteration):
-                self.iter = iter(self.loader)
-                x1, x2, x3, x4, x5, x6, x7, x8, x9, x9_lm = next(self.iter)
-            return x1, x2, x3, x4, x5, x6, x7, x8, x9, x9_lm
-        else:
-            try:
-                x1, x2, x_lm, x2_lm, lm, gt, x1_angle, x2_angle = next(self.iter)
-                # x1, x2, x_lm, x2_lm, lm = next(self.iter)
-            except (AttributeError, StopIteration):
-                self.iter = iter(self.loader)
-                x1, x2, x_lm, x2_lm, lm, gt, x1_angle, x2_angle = next(self.iter)
-                # x1, x2, x_lm, x2_lm, lm = next(self.iter)
-            return x1, x2, x_lm, x2_lm, lm, gt, x1_angle, x2_angle
-            # return x1, x2, x_lm, x2_lm, lm
-
-    def __next__(self):
-        if self.multi:
-            x1, x2, x3, x4, x5, x6, x7, x8, x9, x9_lm = self._fetch_inputs()
-
-            inputs = Munch(
-                x1=x1,
-                x2=x2,
-                x3=x3,
-                x4=x4,
-                x5=x5,
-                x6=x6,
-                x7=x7,
-                x8=x8,
-                x9=x9,
-                x9_lm=x9_lm,
-            )
-
-            return Munch({k: v.to(self.device) for k, v in inputs.items()})
-        else:
-            x1, x2, x_lm, x2_lm, lm, gt, x1_angle, x2_angle = (
-                self._fetch_inputs()
-            )  # poe
-            # x1, x2, x_lm, x2_lm, lm= self._fetch_inputs()
-
-            inputs = Munch(
-                x1=x1,
-                x2=x2,
-                x_lm=x_lm,
-                x2_lm=x2_lm,
-                lm=lm,
-                gt=gt,
-                x1_angle=x1_angle,
-                x2_angle=x2_angle,
-            )
-            # inputs = Munch(x1=x1, x2=x2, x_lm=x_lm, x2_lm=x2_lm, lm=lm)
-
-            return Munch({k: v.to(self.device) for k, v in inputs.items()})

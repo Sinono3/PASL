@@ -6,3 +6,7 @@ log/
 *.pyc
 .venv
 *.mp4
+/datasets/
+/output/
+/outputs/
+/weights/
