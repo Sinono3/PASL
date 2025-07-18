@@ -918,17 +918,22 @@ class Discriminator_img_lm(nn.Module):
         return out
 
 
-def build_model(args):
-    if args.multi_discriminator:
-        generator = Generator(args.img_size, args.style_dim, w_hpf=args.w_hpf)
+def build_model(cfg):
+    if cfg.model.multi_discriminator:
+        generator = Generator(
+            cfg.model.img_size, cfg.model.style_dim, w_hpf=cfg.model.w_hpf
+        )
         style_encoder = StyleEncoder(
-            args.img_size, args.style_dim, args.num_domains, args.self_att
+            cfg.model.img_size,
+            cfg.model.style_dim,
+            cfg.model.num_domains,
+            cfg.model.self_att,
         )
         discriminator_img = Discriminator_img_pix(
-            args.img_size, args.num_domains, args.self_att
+            cfg.model.img_size, cfg.model.num_domains, cfg.model.self_att
         )
         discriminator_img2 = Discriminator_img2_pix(
-            args.img_size, args.num_domains, args.self_att
+            cfg.model.img_size, cfg.model.num_domains, cfg.model.self_att
         )
 
         generator_ema = copy.deepcopy(generator)
@@ -943,12 +948,17 @@ def build_model(args):
         nets_ema = Munch(generator=generator_ema, style_encoder=style_encoder_ema)
 
     else:
-        generator = Generator(args.img_size, args.style_dim, w_hpf=args.w_hpf)
+        generator = Generator(
+            cfg.model.img_size, cfg.model.style_dim, w_hpf=cfg.model.w_hpf
+        )
         style_encoder = StyleEncoder(
-            args.img_size, args.style_dim, args.num_domains, args.self_att
+            cfg.model.img_size,
+            cfg.model.style_dim,
+            cfg.model.num_domains,
+            cfg.model.self_att,
         )
         discriminator_img = Discriminator_img(
-            args.img_size, args.num_domains, args.self_att
+            cfg.model.img_size, cfg.model.num_domains, cfg.model.self_att
         )
         generator_ema = copy.deepcopy(generator)
         style_encoder_ema = copy.deepcopy(style_encoder)

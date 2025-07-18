@@ -19,10 +19,10 @@ from PIL import Image
 from torch.utils import data
 from torchvision import transforms
 
-from models.decalib.datasets import datasets, detectors
-from models.decalib.deca import DECA
-from models.decalib.utils import util
-from models.decalib.utils.config import cfg as deca_cfg
+from external.deca.decalib.datasets import datasets, detectors
+from external.deca.decalib.deca import DECA
+from external.deca.decalib.utils import util
+from external.deca.decalib.utils.config import cfg as deca_cfg
 
 DEVICE = "cpu"
 
@@ -289,10 +289,9 @@ class LMDataset(data.Dataset):
 
 def get_depth_render(deca, face_detector, src_path, ref_path):
     testdata = datasets.TestData(
-        face_detector,
         [src_path, ref_path],
+        face_detector,
         iscrop=True,
-        face_detector="fan",
         sample_step=10,
     )
     device = DEVICE

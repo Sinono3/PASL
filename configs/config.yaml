@@ -1,0 +1,17 @@
+defaults:
+  - model: ???
+  - dataset: ???
+  
+# Globals
+seed: 777
+num_workers: 0 # for dataloader
+batch_size: ???
+output_dir: output
+output_label: ${model.name}_${dataset.name}
+num_outputs_per_domain: 2
+
+# Hydra output config
+hydra:
+  run:
+    dir: ${output_dir}/${now:%Y-%m-%d}/${now:%H-%M-%S}
+

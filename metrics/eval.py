@@ -22,35 +22,36 @@ from core.data_loader_lm_perceptual import get_eval_loader_vgg
 @torch.no_grad()
 def generate_images(
     nets,
-    args,
-    step: int,
+    cfg,
     mode: "eval",
     list_path: os.PathLike,
     output_dir: os.PathLike,
+    output_label: str,
 ):
     output_dir = pathlib.Path(output_dir)
+    output_dir = output_dir / "eval" / output_label
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # read the testing image
     loader_eval = get_eval_loader_vgg(
         root=list_path,
-        train_data=args.dataset,
-        img_size=args.img_size,
-        batch_size=args.val_batch_size,
+        train_data=cfg.dataset.name,
+        img_size=cfg.model.img_size,
+        batch_size=cfg.batch_size,
         imagenet_normalize=False,
         drop_last=True,
-        mode=args.mode,
+        mode="eval",
     )
 
-    iter = "%s" % step
-    if os.path.exists(os.path.join(output_dir, iter)):
+    if os.path.exists(os.path.join(output_dir)):
         print("Output directory already exists. Aborting.")
         return
 
-    path_fake = output_dir / iter / "fake"
-    path_real = output_dir / iter / "real"
-    path_real_lm = output_dir / iter / "lm"
-    path_ground_truth_lm = output_dir / iter / "ground_truth"
+    path_fake = output_dir / "fake"
+    path_real = output_dir / "real"
+    path_real_lm = output_dir / "real_lm"
+    path_ground_truth_lm = output_dir / "ground_truth_lm"
 
     shutil.rmtree(path_fake, ignore_errors=True)
     shutil.rmtree(path_real, ignore_errors=True)
@@ -73,12 +74,12 @@ def generate_images(
         x2_target = x2_target.to(device)
 
         N = x2_target_lm.size(0)  # batch-size
-        if args.masks:
+        if cfg.model.masks:
             masks = x2_target_lm
         else:
             masks = None
 
-        for j in range(args.num_outs_per_domain):
+        for j in range(cfg.num_outputs_per_domain):
             x1_source = x_src[0]
             x1_source = x1_source.to(device)
             s_trg = nets.style_encoder(x1_source)
@@ -86,7 +87,7 @@ def generate_images(
 
             # save generated images to calculate FID later
             for k in range(N):
-                idx1 = i * args.val_batch_size + (k + 1)
+                idx1 = i * cfg.batch_size + (k + 1)
                 idx2 = j + 1
                 basename = "%.4i_%.2i.png" % (idx1, idx2)
                 filename = path_fake / basename

@@ -20,28 +20,18 @@ from core.model_lm_talking import build_model
 
 
 class Solver(nn.Module):
-    def __init__(self, args):
+    def __init__(self, cfg):
         super().__init__()
-        self.args = args
+        self.cfg = cfg
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.nets, self.nets_ema = build_model(args)
-        self.writer = SummaryWriter("log/test_reconstruction")
+        self.nets, self.nets_ema = build_model(cfg)
+        self.writer = SummaryWriter("output/log/test_reconstruction")
 
         for name, module in self.nets.items():
             utils.print_network(module, name)
             setattr(self, name, module)
         for name, module in self.nets_ema.items():
             setattr(self, name + "_ema", module)
-
-        if args.mode == "eval":
-            self.ckptios = [
-                CheckpointIO(
-                    ospj(
-                        args.checkpoint_dir, "{}_nets_ema.ckpt".format(args.resume_iter)
-                    ),
-                    **self.nets_ema,
-                )
-            ]
 
         self.to(self.device)
         for name, network in self.named_children():
@@ -50,10 +40,8 @@ class Solver(nn.Module):
                 print("Initializing %s..." % name)
                 network.apply(utils.he_init)
 
-    def _save_checkpoint(self, step):
-        for ckptio in self.ckptios:
-            ckptio.save(step)
-
-    def _load_checkpoint(self, step):
-        for ckptio in self.ckptios:
-            ckptio.load(step)
+    # Loads nets_ema from a path
+    def load_from_path(self, path):
+        pickle = torch.load(path, map_location=self.device)
+        self.nets_ema.generator = pickle['generator']
+        self.nets_ema.style_encoder = pickle['style_encoder']

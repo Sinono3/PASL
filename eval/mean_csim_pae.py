@@ -26,7 +26,7 @@ if torch.cuda.is_available():
 
 
 # 加载3DDFA-V2模型配置
-cfg = yaml.load(open("./configs/mb1_120x120.yml"), Loader=yaml.SafeLoader)
+cfg = yaml.load(open("./configs/bfm/mb1_120x120.yml"), Loader=yaml.SafeLoader)
 
 # 初始化FaceBoxes和TDDFA
 face_boxes = FaceBoxes_ONNX()
@@ -186,12 +186,12 @@ def calculate_csim_for_all_tasks(fake_dir, gt_dir, real_dir):
     print("Loading PAE model...")
     # Order must be the same as in LABEL_TO_INDEX
     criteria = [
-        load_ir50("ff", "./weights/POE/FF/Backbone_IR_50_Epoch_80.pth", device),
-        load_ir50("fs", "./weights/POE/FS/Backbone_IR_50_Epoch_80.pth", device),
-        load_ir50("fp", "./weights/POE/FP/Backbone_IR_50_Epoch_120.pth", device),
-        load_ir50("ss", "./weights/POE/SS/Backbone_IR_50_Epoch_100.pth", device),
-        load_ir50("sp", "./weights/POE/SP/Backbone_IR_50_Epoch_150.pth", device),
-        load_ir50("pp", "./weights/POE/PP/Backbone_IR_50_Epoch_100.pth", device),
+        load_ir50("ff", "./weights/pae/ff_backbone_ir_50_epoch_80.pth", device),
+        load_ir50("fs", "./weights/pae/fs_backbone_ir_50_epoch_80.pth", device),
+        load_ir50("fp", "./weights/pae/fp_backbone_ir_50_epoch_120.pth", device),
+        load_ir50("ss", "./weights/pae/ss_backbone_ir_50_epoch_100.pth", device),
+        load_ir50("sp", "./weights/pae/sp_backbone_ir_50_epoch_150.pth", device),
+        load_ir50("pp", "./weights/pae/pp_backbone_ir_50_epoch_100.pth", device),
     ]
     for crit in criteria:
         crit.eval()

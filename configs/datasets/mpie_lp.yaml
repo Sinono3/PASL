@@ -1,3 +1,0 @@
-name: mpie_lp
-list: ./datasets/mpie_cross_test_cvpr_full.txt
-path: ./datasets/mpie_lp

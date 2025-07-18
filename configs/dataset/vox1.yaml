@@ -1,0 +1,4 @@
+name: voxceleb1
+path: ./datasets/voxceleb1
+train_list:
+eval_list: ./datasets/test_self_vox1_clean.txt

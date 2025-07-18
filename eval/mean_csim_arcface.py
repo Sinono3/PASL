@@ -59,8 +59,8 @@ def calculate_csim_for_all_tasks(fake_dir, gt_dir, real_dir):
 
 
 if __name__ == "__main__":
-    fake_image_dir = "./output/eval/mpie/250000"
-    gt_image_dir = "./output/eval/mpie/250000ground_truth"
-    real_image_dir = "./output/eval/mpie/250000real"
+    fake_image_dir = "./output/eval/mpieOLD/fake"
+    gt_image_dir = "./output/eval/mpieOLD/ground_truth"
+    real_image_dir = "./output/eval/mpieOLD/real"
 
     calculate_csim_for_all_tasks(fake_image_dir, gt_image_dir, real_image_dir)

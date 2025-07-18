@@ -1,3 +1,0 @@
-name: vox1
-list: ./datasets/test_self_vox1_clean.txt
-path: ./datasets/vox1
