@@ -1,0 +1,9 @@
+[submodule "external/3DDFA_V2"]
+	path = external/3DDFA_V2
+	url = https://github.com/cleardusk/3DDFA_V2
+[submodule "external/face_alignment"]
+	path = external/face_alignment
+	url = https://github.com/1adrianb/face-alignment
+[submodule "external/deca"]
+	path = external/deca
+	url = https://github.com/Sinono3/DECA
