@@ -26,53 +26,9 @@ from external.deca.decalib.utils.config import cfg as deca_cfg
 
 DEVICE = "cpu"
 
-
-def listdir(dname):
-    fnames = list(
-        chain(
-            *[
-                list(Path(dname).rglob("*." + ext))
-                for ext in ["png", "jpg", "jpeg", "JPG"]
-            ]
-        )
-    )
-    return fnames
-
-
-class DefaultDataset(data.Dataset):
-    def __init__(self, root, transform=None):
-        self.samples = listdir(root[0])
-        self.samples.sort()
-
-        self.samples_2 = listdir(root[1])
-        self.samples_2.sort()
-
-        self.samples_3 = listdir(root[2])
-        self.samples_3.sort()
-        self.transform = transform
-        self.targets = None
-
-    def __getitem__(self, index):
-        fname = self.samples[index]
-        fname_2 = self.samples_2[index]
-        fname_3 = self.samples_3[index]
-
-        img = Image.open(fname).convert("RGB")
-        img_2 = Image.open(fname_2).convert("RGB")
-        img_3 = Image.open(fname_3).convert("RGB")
-        if self.transform is not None:
-            img = self.transform(img)
-            img_2 = self.transform(img_2)
-            img_3 = self.transform(img_3)
-        return img, img_2, img_3
-
-    def __len__(self):
-        return len(self.samples)
-
-
 class LMDataset(data.Dataset):
     def __init__(
-        self, root, transform=None, train_data="mpie", multi=False, test="train"
+        self, root, list_path, transform=None, train_data="mpie", multi=False, test="train"
     ):
         self.device = DEVICE
         self.deca = DECA(config=deca_cfg, device=self.device)
@@ -82,6 +38,7 @@ class LMDataset(data.Dataset):
         self.train_data = train_data
         self.transform = transform
         self.targets = None
+        self.root = root
 
         if multi:
             self.samples = []
@@ -94,7 +51,7 @@ class LMDataset(data.Dataset):
             self.samples8 = []
             self.samples9 = []
 
-            with open(root) as F:
+            with open(list_path) as F:
                 for line in F:
                     line = line.strip("\n")
                     # print(line.split(' '))
@@ -115,7 +72,7 @@ class LMDataset(data.Dataset):
             self.samples2_angle = []
             self.samples3 = []
 
-            with open(root) as F:
+            with open(list_path) as F:
                 n = 0
                 try:
                     for line in F:
@@ -235,7 +192,7 @@ class LMDataset(data.Dataset):
                     fname2.split("crop_256")[0] + "LM_256" + fname2.split("crop_256")[1]
                 )
 
-            ROOT = "datasets/mpie_lp"
+            ROOT = self.root
             fname = os.path.join(ROOT, fname)
             fname2 = os.path.join(ROOT, fname2)
             fname3 = os.path.join(ROOT, fname3)
@@ -345,6 +302,7 @@ def get_depth_render(deca, face_detector, src_path, ref_path):
 
 def get_eval_loader_vgg(
     root,
+    list_path,
     img_size=256,
     batch_size=32,
     imagenet_normalize=True,
@@ -371,7 +329,7 @@ def get_eval_loader_vgg(
     )
 
     dataset = LMDataset(
-        root, transform=transform, train_data=train_data, multi=multi, test=mode
+        root, list_path, transform=transform, train_data=train_data, multi=multi, test=mode
     )
     return data.DataLoader(
         dataset=dataset,
@@ -382,44 +340,3 @@ def get_eval_loader_vgg(
         drop_last=drop_last,
     )
 
-
-def get_eval_loader_2(
-    root,
-    img_size=256,
-    batch_size=32,
-    imagenet_normalize=True,
-    shuffle=False,
-    num_workers=4,
-    drop_last=False,
-    train_data="mpie",
-    multi=False,
-):
-    print("Preparing DataLoader for the evaluation phase...")
-    if imagenet_normalize:
-        height, width = 299, 299
-        mean = [0.485, 0.456, 0.406]
-        std = [0.229, 0.224, 0.225]
-    else:
-        height, width = img_size, img_size
-        mean = [0.5, 0.5, 0.5]
-        std = [0.5, 0.5, 0.5]
-
-    transform = transforms.Compose(
-        [
-            transforms.Resize([img_size, img_size]),
-            transforms.Resize([height, width]),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=mean, std=std),
-        ]
-    )
-
-    dataset = DefaultDataset(root, transform=transform)
-    # dataset = LMDataset(root, transform=transform, train_data = train_data)
-    return data.DataLoader(
-        dataset=dataset,
-        batch_size=batch_size,
-        shuffle=shuffle,
-        num_workers=num_workers,
-        pin_memory=True,
-        drop_last=drop_last,
-    )

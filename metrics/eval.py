@@ -28,15 +28,13 @@ def generate_images(
     output_dir: os.PathLike,
     output_label: str,
 ):
-    output_dir = pathlib.Path(output_dir)
-    output_dir = output_dir / "eval" / output_label
-
+    output_dir = pathlib.Path(cfg.output_dir) / "eval" / output_label
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # read the testing image
     loader_eval = get_eval_loader_vgg(
-        root=list_path,
-        train_data=cfg.dataset.name,
+        root=cfg.dataset.root_path,
+        list_path=cfg.dataset.eval_list_path,
         img_size=cfg.model.img_size,
         batch_size=cfg.batch_size,
         imagenet_normalize=False,

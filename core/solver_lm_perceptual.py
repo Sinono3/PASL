@@ -43,5 +43,5 @@ class Solver(nn.Module):
     # Loads nets_ema from a path
     def load_from_path(self, path):
         pickle = torch.load(path, map_location=self.device)
-        self.nets_ema.generator = pickle['generator']
-        self.nets_ema.style_encoder = pickle['style_encoder']
+        self.nets_ema.generator.load_state_dict(pickle["generator"])
+        self.nets_ema.style_encoder.load_state_dict(pickle["style_encoder"])

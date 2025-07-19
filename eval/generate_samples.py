@@ -17,15 +17,15 @@ from core.solver_lm_perceptual import Solver
 from metrics.eval import generate_images
 
 
-@hydra.main(version_base=None, config_path="../configs/", config_name="config")
+@hydra.main(version_base=None, config_path="../configs/", config_name="base_config")
 def main(cfg: DictConfig):
     print(cfg)
+
     cudnn.benchmark = True
     torch.manual_seed(cfg.seed)
 
     solver = Solver(cfg)
     solver.load_from_path(cfg.model.nets_ema_path)
-    print(solver.nets_ema.keys())
 
     with torch.no_grad():
         generate_images(

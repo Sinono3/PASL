@@ -1,4 +1,4 @@
 name: mpie
-path: ./datasets/mpie
-train_list:
-eval_list: ./datasets/mpie_cross_test_cvpr_full.txt
+root_path: ./datasets/mpie
+train_list_path:
+eval_list_path: ./datasets/mpie_cross_test_cvpr_full.txt
