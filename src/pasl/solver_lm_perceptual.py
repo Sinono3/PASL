@@ -19,10 +19,10 @@ from .model_lm_talking import build_model
 
 
 class Solver(nn.Module):
-    def __init__(self, cfg):
+    def __init__(self, cfg, device):
         super().__init__()
         self.cfg = cfg
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = device
         self.nets, self.nets_ema = build_model(cfg)
         self.writer = SummaryWriter(
             Path(cfg.output_dir) / "log" / "test_reconstruction"

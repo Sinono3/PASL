@@ -28,9 +28,9 @@ from pasl.utils import set_seed
 def generate_samples(
     nets,
     cfg,
+    device,
 ):
     output_dir = pathlib.Path(cfg.output_dir) / "eval" / cfg.output_label
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # read the testing image
     loader_eval = get_eval_loader_vgg(
@@ -106,9 +106,11 @@ def generate_samples(
 )
 def main(cfg: DictConfig):
     set_seed(cfg.seed)
-    solver = Solver(cfg)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    solver = Solver(cfg, device)
     solver.load_from_path(cfg.model.nets_ema_path)
-    generate_samples(solver.nets_ema, cfg)
+    generate_samples(solver.nets_ema, cfg, device)
 
 
 if __name__ == "__main__":
