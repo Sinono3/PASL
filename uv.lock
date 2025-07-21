@@ -1245,7 +1245,7 @@ wheels = [
 [[package]]
 name = "face-alignment"
 version = "1.3.4"
-source = { directory = "external/face_alignment" }
+source = { git = "https://github.com/1adrianb/face-alignment?rev=c49ca6fef8ffa95a0ac7ce698e0b752ac91f6d42#c49ca6fef8ffa95a0ac7ce698e0b752ac91f6d42" }
 dependencies = [
     { name = "numba", version = "0.58.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.9'" },
     { name = "numba", version = "0.60.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
@@ -1260,18 +1260,6 @@ dependencies = [
     { name = "torch", version = "1.12.1", source = { registry = "https://download.pytorch.org/whl/cu113" }, marker = "platform_machine == 'aarch64' and sys_platform == 'linux'" },
     { name = "torch", version = "1.12.1", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'linux' and sys_platform != 'win32'" },
     { name = "torch", version = "1.12.1+cu113", source = { registry = "https://download.pytorch.org/whl/cu113" }, marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or sys_platform == 'win32'" },
-    { name = "tqdm" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "enum34", marker = "python_full_version < '3.4'" },
-    { name = "numba" },
-    { name = "numpy" },
-    { name = "opencv-python" },
-    { name = "scikit-image" },
-    { name = "scipy", specifier = ">=0.17" },
-    { name = "torch" },
     { name = "tqdm" },
 ]
 
@@ -4525,7 +4513,7 @@ wheels = [
 [[package]]
 name = "pasl"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "chumpy" },
     { name = "cython" },
@@ -4578,7 +4566,7 @@ requires-dist = [
     { name = "chumpy", specifier = ">=0.70" },
     { name = "cython", specifier = ">=3.0.12" },
     { name = "einops", specifier = ">=0.8.1" },
-    { name = "face-alignment", directory = "external/face_alignment" },
+    { name = "face-alignment", git = "https://github.com/1adrianb/face-alignment?rev=c49ca6fef8ffa95a0ac7ce698e0b752ac91f6d42" },
     { name = "fastai", specifier = ">=2.7.12" },
     { name = "ffmpeg", specifier = ">=1.4" },
     { name = "gradio", specifier = "==3.34.0" },
@@ -4592,7 +4580,7 @@ requires-dist = [
     { name = "onnxruntime", specifier = "==1.14.1" },
     { name = "opencv-python", specifier = ">=4.7" },
     { name = "pillow", specifier = "==9.4" },
-    { name = "pytorch3d", git = "https://github.com/facebookresearch/pytorch3d?rev=e245560abb8f019a24880faf7557ed3b2eec6cc0A" },
+    { name = "pytorch3d", directory = "../pytorch3d" },
     { name = "pyyaml", specifier = ">=6.0.1" },
     { name = "scikit-image", specifier = ">=0.19.3" },
     { name = "tensorboardx", specifier = ">=2.6.2.2" },
@@ -5522,11 +5510,30 @@ wheels = [
 [[package]]
 name = "pytorch3d"
 version = "0.7.3"
-source = { git = "https://github.com/facebookresearch/pytorch3d?rev=e245560abb8f019a24880faf7557ed3b2eec6cc0A#e245560abb8f019a24880faf7557ed3b2eec6cc0" }
+source = { directory = "../pytorch3d" }
 dependencies = [
     { name = "fvcore" },
     { name = "iopath" },
 ]
+
+[package.metadata]
+requires-dist = [
+    { name = "accelerate", marker = "extra == 'implicitron'" },
+    { name = "flake8", marker = "extra == 'dev'" },
+    { name = "fvcore" },
+    { name = "hydra-core", marker = "extra == 'implicitron'", specifier = ">=1.1" },
+    { name = "imageio", marker = "extra == 'all'" },
+    { name = "iopath" },
+    { name = "ipywidgets", marker = "extra == 'all'" },
+    { name = "lpips", marker = "extra == 'implicitron'" },
+    { name = "matplotlib", marker = "extra == 'all'" },
+    { name = "matplotlib", marker = "extra == 'implicitron'" },
+    { name = "tqdm", marker = "extra == 'all'", specifier = ">4.29.0" },
+    { name = "tqdm", marker = "extra == 'implicitron'", specifier = ">4.29.0" },
+    { name = "usort", marker = "extra == 'dev'" },
+    { name = "visdom", marker = "extra == 'implicitron'" },
+]
+provides-extras = ["all", "dev", "implicitron"]
 
 [[package]]
 name = "pytz"
