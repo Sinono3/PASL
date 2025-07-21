@@ -1,5 +1,5 @@
 import math
-from math import asin, atan2, cos, sin
+from math import asin, atan2, cos
 
 import einops
 import numpy as np
@@ -89,7 +89,7 @@ def calculate_rotation(image: Float[torch.Tensor, "height width channel"]):
 
     n = len(boxes)
     if n == 0:
-        print(f"No face detected, exit")
+        print("No face detected, exit")
         return None
 
     # 使用3DDFA-V2进行3D姿势估计
@@ -98,8 +98,8 @@ def calculate_rotation(image: Float[torch.Tensor, "height width channel"]):
     try:
         param_lst, roi_box_lst = tddfa(image, boxes)
         param = param_lst[0]
-    except Exception as e:
-        print(f"3D pose estimation failed, skipping")
+    except Exception:
+        print("3D pose estimation failed, skipping")
         return None
 
     P1 = param[:12].reshape(3, -1).copy()  # camera matrix

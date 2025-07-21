@@ -9,8 +9,6 @@ Creative Commons, PO Box 1866, Mountain View, CA 94042, USA.
 """
 
 import os
-from itertools import chain
-from pathlib import Path
 
 import cv2
 import numpy as np
@@ -26,19 +24,24 @@ from external.deca.decalib.utils.config import cfg as deca_cfg
 
 DEVICE = "cpu"
 
+
 class LMDataset(data.Dataset):
     def __init__(
-        self, root, list_path, transform=None, train_data="mpie", multi=False, test="train"
+        self,
+        root_dir,
+        list_path,
+        transform=None,
+        train_data="mpie",
+        multi=False,
     ):
         self.device = DEVICE
         self.deca = DECA(config=deca_cfg, device=self.device)
         self.face_detector = detectors.FAN(device=self.device)
         self.multi = multi
-        self.test = test
         self.train_data = train_data
         self.transform = transform
         self.targets = None
-        self.root = root
+        self.root_dir = root_dir
 
         if multi:
             self.samples = []
@@ -92,7 +95,7 @@ class LMDataset(data.Dataset):
                         except:
                             self.samples3.append(line.split(" ")[1])
 
-                except Exception as e:
+                except Exception:
                     n += 1
                     print("error {} images".format(n))
                     del self.samples[-1]
@@ -192,10 +195,9 @@ class LMDataset(data.Dataset):
                     fname2.split("crop_256")[0] + "LM_256" + fname2.split("crop_256")[1]
                 )
 
-            ROOT = self.root
-            fname = os.path.join(ROOT, fname)
-            fname2 = os.path.join(ROOT, fname2)
-            fname3 = os.path.join(ROOT, fname3)
+            fname = os.path.join(self.root_dir, fname)
+            fname2 = os.path.join(self.root_dir, fname2)
+            fname3 = os.path.join(self.root_dir, fname3)
             img = Image.open(fname).convert("RGB")
             img2 = Image.open(fname2).convert("RGB")
             gt = Image.open(fname3).convert("RGB")
@@ -301,7 +303,7 @@ def get_depth_render(deca, face_detector, src_path, ref_path):
 
 
 def get_eval_loader_vgg(
-    root,
+    root_dir,
     list_path,
     img_size=256,
     batch_size=32,
@@ -311,7 +313,6 @@ def get_eval_loader_vgg(
     drop_last=False,
     train_data="mpie",
     multi=False,
-    mode="train",
 ):
     print("Preparing DataLoader for the evaluation phase...")
     if imagenet_normalize:
@@ -329,7 +330,11 @@ def get_eval_loader_vgg(
     )
 
     dataset = LMDataset(
-        root, list_path, transform=transform, train_data=train_data, multi=multi, test=mode
+        root_dir,
+        list_path,
+        transform=transform,
+        train_data=train_data,
+        multi=multi,
     )
     return data.DataLoader(
         dataset=dataset,
@@ -339,4 +344,3 @@ def get_eval_loader_vgg(
         pin_memory=True,
         drop_last=drop_last,
     )
-

@@ -8,14 +8,13 @@ http://creativecommons.org/licenses/by-nc/4.0/ or send a letter to
 Creative Commons, PO Box 1866, Mountain View, CA 94042, USA.
 """
 
-from os.path import join as ospj
+from pathlib import Path
 
 import torch
 import torch.nn as nn
 from tensorboardX import SummaryWriter
 
 import core.utils_lm as utils
-from core.checkpoint import CheckpointIO
 from core.model_lm_talking import build_model
 
 
@@ -25,7 +24,9 @@ class Solver(nn.Module):
         self.cfg = cfg
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.nets, self.nets_ema = build_model(cfg)
-        self.writer = SummaryWriter("output/log/test_reconstruction")
+        self.writer = SummaryWriter(
+            Path(cfg.output_dir) / "log" / "test_reconstruction"
+        )
 
         for name, module in self.nets.items():
             utils.print_network(module, name)

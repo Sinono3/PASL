@@ -23,12 +23,8 @@ from core.data_loader_lm_perceptual import get_eval_loader_vgg
 def generate_images(
     nets,
     cfg,
-    mode: "eval",
-    list_path: os.PathLike,
-    output_dir: os.PathLike,
-    output_label: str,
 ):
-    output_dir = pathlib.Path(cfg.output_dir) / "eval" / output_label
+    output_dir = pathlib.Path(cfg.output_dir) / "eval" / cfg.output_label
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # read the testing image
@@ -39,7 +35,6 @@ def generate_images(
         batch_size=cfg.batch_size,
         imagenet_normalize=False,
         drop_last=True,
-        mode="eval",
     )
 
     if os.path.exists(os.path.join(output_dir)):

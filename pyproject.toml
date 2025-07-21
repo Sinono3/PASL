@@ -48,3 +48,11 @@ face_alignment = { path = "external/face_alignment" }
 name = "pytorch-cu113"
 url = "https://download.pytorch.org/whl/cu113"
 explicit = true
+
+[dependency-groups]
+dev = [
+    "ruff>=0.12.4",
+]
+
+[tool.ruff]
+ignore = ["F722"]

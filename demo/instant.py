@@ -23,10 +23,6 @@ import torch.nn as nn
 from core.model_lm_talking import build_model
 from core.checkpoint import CheckpointIO
 from os.path import join as ospj
-import argparse
-import cv2
-import numpy as np
-import torch
 
 class Solver(nn.Module):
     def __init__(self, args):

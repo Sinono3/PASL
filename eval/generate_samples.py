@@ -17,10 +17,8 @@ from core.solver_lm_perceptual import Solver
 from metrics.eval import generate_images
 
 
-@hydra.main(version_base=None, config_path="../configs/", config_name="base_config")
+@hydra.main(version_base=None, config_path="../configs/", config_name="base_generate")
 def main(cfg: DictConfig):
-    print(cfg)
-
     cudnn.benchmark = True
     torch.manual_seed(cfg.seed)
 
@@ -28,14 +26,7 @@ def main(cfg: DictConfig):
     solver.load_from_path(cfg.model.nets_ema_path)
 
     with torch.no_grad():
-        generate_images(
-            solver.nets_ema,
-            cfg,
-            mode="latent",
-            list_path=cfg.dataset.eval_list,
-            output_dir=cfg.output_dir,
-            output_label=cfg.output_label,
-        )
+        generate_images(solver.nets_ema, cfg)
 
 
 if __name__ == "__main__":
