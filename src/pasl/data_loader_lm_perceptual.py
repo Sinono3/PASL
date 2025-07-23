@@ -22,8 +22,6 @@ from deca.decalib.deca import DECA
 from deca.decalib.utils import util
 from deca.decalib.utils.config import cfg as deca_cfg
 
-DEVICE = "cpu"
-
 
 class LMDataset(data.Dataset):
     def __init__(
@@ -33,14 +31,14 @@ class LMDataset(data.Dataset):
         transform=None,
         train_data="mpie",
         multi=False,
+        device="cpu",
     ):
-        self.device = DEVICE
+        self.device = device
         self.deca = DECA(config=deca_cfg, device=self.device)
         self.face_detector = detectors.FAN(device=self.device)
         self.multi = multi
         self.train_data = train_data
         self.transform = transform
-        self.targets = None
         self.root_dir = root_dir
 
         if multi:
@@ -80,6 +78,7 @@ class LMDataset(data.Dataset):
                 try:
                     for line in F:
                         line = line.strip("\n")
+
                         # print(line.split(" "))
                         self.samples.append(line.split(" ")[0])
                         self.samples_angle.append(
@@ -101,6 +100,12 @@ class LMDataset(data.Dataset):
                     del self.samples[-1]
                     del self.samples2[-1]
                     pass
+
+            # print(self.samples[0:5])
+            # print(self.samples_angle[0:5])
+            # print(self.samples2[0:5])
+            # print(self.samples2_angle[0:5])
+            # print(self.samples3[0:5])
 
     def __getitem__(self, index):
         if self.multi:
@@ -201,7 +206,9 @@ class LMDataset(data.Dataset):
             img = Image.open(fname).convert("RGB")
             img2 = Image.open(fname2).convert("RGB")
             gt = Image.open(fname3).convert("RGB")
-            img_lm2, lm = get_depth_render(self.deca, self.face_detector, fname, fname2)
+            img_lm2, lm = get_depth_render(
+                self.deca, self.face_detector, fname, fname2, self.device
+            )
             img_lm2 = img_lm2.resize((256, 256))
             img_lm = img_lm2
 
@@ -231,6 +238,12 @@ class LMDataset(data.Dataset):
                 lm = self.transform(lm)
                 gt = self.transform(gt)
 
+            print(img.shape)
+            print(img2.shape)
+            print(img_lm2.shape)
+            print(img_lm.shape)
+            print(gt.shape)
+
             return (
                 img,
                 img2,
@@ -246,22 +259,21 @@ class LMDataset(data.Dataset):
         return len(self.samples)
 
 
-def get_depth_render(deca, face_detector, src_path, ref_path):
+def get_depth_render(deca, face_detector, src_path, ref_path, device):
     testdata = datasets.TestData(
         [src_path, ref_path],
         face_detector,
         iscrop=True,
         sample_step=10,
     )
-    device = DEVICE
     i = 0
     deca_cfg.model.use_tex = False
-    deca_cfg.rasterizer_type = "pytorch3d"
     deca_cfg.model.extract_tex = True
-    src_name = testdata[i]["imagename"]
+    # deca_cfg.rasterizer_type = "pytorch3d"
+
     src = testdata[i]["image"].to(device)[None, ...]
-    ref_name = testdata[i + 1]["imagename"]
     ref = testdata[i + 1]["image"].to(device)[None, ...]
+
     with torch.no_grad():
         codedict1 = deca.encode(src)
         codedict2 = deca.encode(ref)
@@ -312,6 +324,7 @@ def get_eval_loader_vgg(
     drop_last=False,
     train_data="mpie",
     multi=False,
+    device="cpu",
 ):
     print("Preparing DataLoader for the evaluation phase...")
     if imagenet_normalize:
@@ -334,6 +347,7 @@ def get_eval_loader_vgg(
         transform=transform,
         train_data=train_data,
         multi=multi,
+        device=device,
     )
     return data.DataLoader(
         dataset=dataset,

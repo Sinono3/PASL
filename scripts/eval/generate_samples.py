@@ -15,11 +15,12 @@ import shutil
 import hydra
 import torch
 from omegaconf import DictConfig
-from torch.backends import cudnn
 from tqdm import tqdm
 
 from pasl import utils_lm
-from pasl.data_loader_lm_perceptual import get_eval_loader_vgg
+
+# from pasl.data_loader_lm_perceptual import get_eval_loader_vgg
+from pasl.data_loader_lm_perceptual_new import get_eval_loader_vgg
 from pasl.solver_lm_perceptual import Solver
 from pasl.utils import set_seed
 
@@ -33,13 +34,14 @@ def generate_samples(
     output_dir = pathlib.Path(cfg.output_dir) / "eval" / cfg.output_label
 
     # read the testing image
-    loader_eval = get_eval_loader_vgg(
+    loader = get_eval_loader_vgg(
         root_dir=cfg.dataset.root_path,
         list_path=cfg.dataset.eval_list_path,
         img_size=cfg.model.img_size,
         batch_size=cfg.batch_size,
         imagenet_normalize=False,
         drop_last=True,
+        device=device,
     )
 
     if os.path.exists(os.path.join(output_dir)):
@@ -62,43 +64,56 @@ def generate_samples(
     path_ground_truth_lm.mkdir(parents=True, exist_ok=True)
 
     print("Generating images ...")
-    for i, x_src in enumerate(tqdm(loader_eval, total=len(loader_eval))):
-        lm = x_src[4]
-        x2_target_lm = x_src[3]
-        x2_target = x_src[1]
 
-        lm = lm.to(device)
-        x2_target_lm = x2_target_lm.to(device)
-        x2_target = x2_target.to(device)
+    import itertools
 
-        N = x2_target_lm.size(0)  # batch-size
-        if cfg.model.masks:
-            masks = x2_target_lm
-        else:
-            masks = None
+    from torch.profiler import ProfilerActivity, profile, record_function
 
-        for j in range(cfg.num_outputs_per_domain):
-            x1_source = x_src[0]
-            x1_source = x1_source.to(device)
+    with profile(
+        activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA], record_shapes=True
+    ) as prof:
+        with record_function("model_inference"):
+            for i, x_src in itertools.islice(
+                enumerate(tqdm(loader, total=len(loader))), 1
+            ):
+                lm = x_src[4]
+                x2_target_lm = x_src[3]
+                x2_target = x_src[1]
 
-            with torch.no_grad():
-                s_trg = nets.style_encoder(x1_source)
-                x_fake = nets.generator(x2_target_lm, lm, s_trg, masks=masks)
+                lm = lm.to(device)
+                x2_target_lm = x2_target_lm.to(device)
+                x2_target = x2_target.to(device)
 
-            # save generated images to calculate FID later
-            for k in range(N):
-                idx1 = i * cfg.batch_size + (k + 1)
-                idx2 = j + 1
-                basename = "%.4i_%.2i.png" % (idx1, idx2)
-                filename = path_fake / basename
-                filename2 = path_real / basename
-                filename3 = path_real_lm / basename
-                filename4 = path_ground_truth_lm / basename
+                N = x2_target_lm.size(0)  # batch-size
+                if cfg.model.masks:
+                    masks = x2_target_lm
+                else:
+                    masks = None
 
-                utils_lm.save_image(x_fake[k], ncol=1, filename=filename)
-                utils_lm.save_image(x1_source[k], ncol=1, filename=filename2)
-                utils_lm.save_image(x2_target_lm[k], ncol=1, filename=filename3)
-                utils_lm.save_image(x2_target[k], ncol=1, filename=filename4)
+                for j in range(cfg.num_outputs_per_domain):
+                    x1_source = x_src[0]
+                    x1_source = x1_source.to(device)
+
+                    with torch.no_grad():
+                        s_trg = nets.style_encoder(x1_source)
+                        x_fake = nets.generator(x2_target_lm, lm, s_trg, masks=masks)
+
+                    # save generated images to calculate FID later
+                    for k in range(N):
+                        idx1 = i * cfg.batch_size + (k + 1)
+                        idx2 = j + 1
+                        basename = "%.4i_%.2i.png" % (idx1, idx2)
+                        filename = path_fake / basename
+                        filename2 = path_real / basename
+                        filename3 = path_real_lm / basename
+                        filename4 = path_ground_truth_lm / basename
+
+                        utils_lm.save_image(x_fake[k], ncol=1, filename=filename)
+                        utils_lm.save_image(x1_source[k], ncol=1, filename=filename2)
+                        utils_lm.save_image(x2_target_lm[k], ncol=1, filename=filename3)
+                        utils_lm.save_image(x2_target[k], ncol=1, filename=filename4)
+
+    print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
 
 
 @hydra.main(
@@ -106,7 +121,7 @@ def generate_samples(
 )
 def main(cfg: DictConfig):
     set_seed(cfg.seed)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = "cuda" if torch.cuda.is_available() else "cpu"
 
     solver = Solver(cfg, device)
     solver.load_from_path(cfg.model.nets_ema_path)

@@ -46,3 +46,6 @@ class Solver(nn.Module):
         pickle = torch.load(path, map_location=self.device)
         self.nets_ema.generator.load_state_dict(pickle["generator"])
         self.nets_ema.style_encoder.load_state_dict(pickle["style_encoder"])
+        # Just in case.......
+        self.nets_ema.generator.to(self.device)
+        self.nets_ema.style_encoder.to(self.device)

@@ -7,4 +7,4 @@ def set_seed(seed: int):
     torch.manual_seed(seed)
 
     if torch.cuda.is_available():
-        torch.cudnn.benchmark = True
+        torch.backends.cudnn.benchmark = True
