@@ -7,10 +7,9 @@
 
 
 import os
-import pathlib
 import shutil
+from pathlib import Path
 
-import einops
 import hydra
 import torch
 import torch.linalg
@@ -22,9 +21,11 @@ from torch.utils import data
 from torchvision.io import write_png
 from tqdm import tqdm
 
-from deca.decalib.datasets import datasets, detectors
+import pasl.render_deca as rd
+from deca.decalib.datasets import detectors
 from deca.decalib.deca import DECA
 from deca.decalib.utils.config import cfg as deca_cfg
+from pasl.utils import set_seed
 
 
 # Crop image by 20px on the right, pad 10px on the top and resize into original.
@@ -55,6 +56,7 @@ class Dataset(data.Dataset):
         self.samples_src = []
         self.samples_ref = []
 
+        print(f"Processing sample list {list_path}")
         with open(list_path) as F:
             for line_num, line in enumerate(F):
                 try:
@@ -68,6 +70,7 @@ class Dataset(data.Dataset):
 
                 self.samples_src.append(path1)
                 self.samples_ref.append(path2)
+        print(f"Finished processing sample list {list_path}")
 
     def __len__(self):
         return len(self.samples_src)
@@ -79,92 +82,19 @@ class Dataset(data.Dataset):
         return src_path, ref_path, p1, p2
 
 
-# Generate batches of depth and landmark images
-def render_depth_lm(
-    deca: DECA,
-    face_detector: detectors.FAN,
-    src_path_list: list[str],
-    ref_path_list: list[str],
-    device: torch.device | str,
-):
-    assert len(src_path_list) == len(ref_path_list)
-    batchsize = len(src_path_list)
-
-    td = datasets.TestData(
-        src_path_list + ref_path_list, face_detector, iscrop=True, sample_step=10
-    )
-
-    # Recover data from datasets.TestData
-    src_td = {"image": []}
-    ref_td = {"image": [], "tform": [], "original_image": []}
-    for i in range(0, batchsize):
-        src_td["image"].append(td[i]["image"])
-    for i in range(batchsize, batchsize * 2):
-        ref_td["image"].append(td[i]["image"])
-        ref_td["tform"].append(td[i]["tform"])
-        ref_td["original_image"].append(td[i]["original_image"])
-
-    # Stack along batch dimension
-    src_td["image"] = einops.pack(src_td["image"], "* c h w")[0].to(device)
-    ref_td["image"] = einops.pack(ref_td["image"], "* c h w")[0].to(device)
-    ref_td["tform"] = einops.pack(ref_td["tform"], "* rows cols")[0].to(device)
-    ref_td["original_image"] = einops.pack(ref_td["original_image"], "* c h w")[0].to(
-        device
-    )
-
-    ref_tform_inv_t = torch.linalg.inv(ref_td["tform"]).transpose(-2, -1)
-    ref_original = ref_td["original_image"]
-
-    with torch.no_grad():
-        src_embeds = deca.encode(src_td["image"])
-        ref_embeds = deca.encode(ref_td["image"])
-
-        new_embeds = {}
-        # the types of embeddings are
-        # ['shape', 'tex', 'exp', 'pose', 'cam', 'light', 'images', 'detail']
-        # We take `shape`, `tex`, `light`, `detail` from the source
-        new_embeds["shape"] = src_embeds["shape"]
-        new_embeds["tex"] = src_embeds["tex"]
-        new_embeds["light"] = src_embeds["light"]
-        new_embeds["detail"] = src_embeds["detail"]
-        # Use the other embeddings from the references.
-        new_embeds["exp"] = ref_embeds["exp"]
-        new_embeds["pose"] = ref_embeds["pose"]
-        new_embeds["cam"] = ref_embeds["cam"]
-        new_embeds["images"] = ref_embeds["images"]
-
-        opdict, visdict = deca.decode(
-            new_embeds,
-            render_orig=True,
-            original_image=ref_original,
-            tform=ref_tform_inv_t,
-        )
-
-    depth: Float[torch.Tensor, "b c h w"] = deca.render.render_depth(
-        opdict["trans_verts"]
-    ).to(device)
-    lm: Float[torch.Tensor, "b c h w"] = visdict["landmarks2d"].to(device)
-
-    # Clamp into [0,1]
-    depth = depth.clamp(0, 1)
-    lm = lm.clamp(0, 1)
-    return depth, lm
-
-
 @torch.no_grad()
 def generate_depth_lm(
     cfg,
     device,
 ):
-    deca_cfg.model.use_tex = False
-    deca_cfg.model.extract_tex = True
-    deca = DECA(config=deca_cfg, device=device)
-    face_detector = detectors.FAN(device=device)
-    output_dir = pathlib.Path(cfg.output_dir) / "dataset" / cfg.output_label
+    output_dir = Path(cfg.output_dir) / "dataset" / str(cfg.output_label)
+    if output_dir.is_dir():
+        print("Output directory already exists. Aborting.")
+        return
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-    ds = Dataset(cfg.dataset.root_path, cfg.dataset.eval_list.path)
     loader = data.DataLoader(
-        ds,
+        Dataset(cfg.dataset.root_path, cfg.list.path),
         batch_size=cfg.batch_size,
         shuffle=False,
         num_workers=cfg.num_workers,
@@ -172,37 +102,47 @@ def generate_depth_lm(
         drop_last=True,
     )
 
-    depth_dir = output_dir / "depth"
-    lm_dir = output_dir / "lm"
-    shutil.rmtree(depth_dir, ignore_errors=True)
-    shutil.rmtree(lm_dir, ignore_errors=True)
+    depth_dir: Path = output_dir / "depth"
+    lm_dir: Path = output_dir / "lm"
     depth_dir.mkdir(parents=True, exist_ok=True)
     lm_dir.mkdir(parents=True, exist_ok=True)
 
-    print(
-        f"Generating depth and lm images of `{cfg.dataset.name}` (with `{cfg.dataset.eval_list.name}` list) in {output_dir}"
-    )
-    # # DEBUG: Only do one batch
-    # import itertools
-    # loader = itertools.islice(loader, 1)
+    print("Loading DECA model")
+    deca_cfg.model.use_tex = False
+    deca_cfg.model.extract_tex = True
+    deca = DECA(config=deca_cfg, device=device)
+    face_detector = detectors.FAN(device=device)
 
-    for src_path, ref_path, src_base, ref_base in tqdm(loader):
-        depth, lm = render_depth_lm(deca, face_detector, src_path, ref_path, device)
+    print(
+        f"Generating depth and lm images of `{cfg.dataset.name}` (with list {cfg.list.name})\n"
+        f"Saving to {output_dir}"
+    )
+    # # DEBUG: Only do N batches
+    # import itertools
+    # N = 2
+    # loader = itertools.islice(loader, N)
+
+    for i, (src_path, ref_path, src_base, ref_base) in enumerate(tqdm(loader)):
+        depth, lm = rd.render_depth_lm_batch(
+            deca, face_detector, src_path, ref_path, device
+        )
 
         # Convert to appropiate image format
         depth = (depth.clamp(0, 1) * 255.0).to("cpu", torch.uint8)
         lm = (lm.clamp(0, 1) * 255.0).to("cpu", torch.uint8)
 
         # Save output
-        minibatch = depth.shape[0]
-        for b in range(minibatch):
-            src_base1 = src_base[b].replace("/", "%")
-            ref_base1 = ref_base[b].replace("/", "%")
-            basename = f"{src_base1}_{ref_base1}.png"
+        minibatch = depth.size(0)
+        for k in range(minibatch):
+            # list sample index = base batch img index + sample index in batch
+            sample_idx = i * cfg.batch_size + (k + 1)
+            basename = f"{sample_idx:04}.png"
             depth_path = depth_dir / basename
             lm_path = lm_dir / basename
-            write_png(depth[b], str(depth_path))
-            write_png(lm[b], str(lm_path))
+            write_png(depth[k], str(depth_path))
+            write_png(lm[k], str(lm_path))
+
+    print("Generation finished")
 
 
 @hydra.main(
@@ -211,6 +151,7 @@ def generate_depth_lm(
     config_name="base_generate_depth_lm",
 )
 def main(cfg: DictConfig):
+    set_seed(cfg.seed)
     device = "cuda" if torch.cuda.is_available() else "cpu"
     generate_depth_lm(cfg, device)
 

@@ -1,13 +1,14 @@
 defaults:
   - _self_
   - dataset: ???
+  - list: ???
   
 # Globals
 seed: 777
 num_workers: 0 # for dataloader
 batch_size: 80
 output_dir: output
-output_label: ${dataset.eval_list.name}_${dataset.name}
+output_label: ${list.name}
 
 # Hydra output config
 hydra:

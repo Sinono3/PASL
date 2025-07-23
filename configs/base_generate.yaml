@@ -2,14 +2,15 @@ defaults:
   - _self_
   - model: ???
   - dataset: ???
+  - list: ???
   
 # Globals
 seed: 777
 num_workers: 0 # for dataloader
 batch_size: ???
 output_dir: output
-output_label: ${model.name}_${dataset.name}
-num_outputs_per_domain: 2
+output_label: ${model.name}_${list.name}
+num_outputs_per_domain: 1
 
 # Hydra output config
 hydra:

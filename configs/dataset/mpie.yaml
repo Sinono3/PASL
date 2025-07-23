@@ -1,9 +1,3 @@
 name: mpie
 # root_path: ./datasets/mpie
 root_path: /media/avlab/2tb/RFG_pncc_landmark/mpie/crop_256/
-train_list:
-  name:
-  path:
-eval_list:
-  name: mpie_cross_test_cvpr_full
-  path: ./datasets/mpie_cross_test_cvpr_full.txt

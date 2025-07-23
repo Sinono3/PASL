@@ -8,19 +8,17 @@ http://creativecommons.org/licenses/by-nc/4.0/ or send a letter to
 Creative Commons, PO Box 1866, Mountain View, CA 94042, USA.
 """
 
-import os
-import pathlib
-import shutil
+from pathlib import Path
 
+import einops
 import hydra
 import torch
+import torch.nn.functional as F
 from omegaconf import DictConfig
+from torchvision.io import write_png
 from tqdm import tqdm
 
-from pasl import utils_lm
-
-# from pasl.data_loader_lm_perceptual import get_eval_loader_vgg
-from pasl.data_loader_lm_perceptual_new import get_eval_loader_vgg
+from pasl.data import get_data_loader
 from pasl.solver_lm_perceptual import Solver
 from pasl.utils import set_seed
 
@@ -31,89 +29,75 @@ def generate_samples(
     cfg,
     device,
 ):
-    output_dir = pathlib.Path(cfg.output_dir) / "eval" / cfg.output_label
-
-    # read the testing image
-    loader = get_eval_loader_vgg(
-        root_dir=cfg.dataset.root_path,
-        list_path=cfg.dataset.eval_list_path,
-        img_size=cfg.model.img_size,
-        batch_size=cfg.batch_size,
-        imagenet_normalize=False,
-        drop_last=True,
-        device=device,
-    )
-
-    if os.path.exists(os.path.join(output_dir)):
+    output_dir: Path = Path(cfg.output_dir) / "eval" / str(cfg.output_label)
+    if output_dir.is_dir():
         print("Output directory already exists. Aborting.")
         return
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-    path_fake = output_dir / "fake"
-    path_real = output_dir / "real"
-    path_real_lm = output_dir / "real_lm"
-    path_ground_truth_lm = output_dir / "ground_truth_lm"
+    depth_lm_root_path = Path(cfg.output_dir) / "dataset" / f"{cfg.list.name}"
+    loader = get_data_loader(
+        root_path=cfg.dataset.root_path,
+        depth_lm_root_path=depth_lm_root_path,
+        list_path=cfg.list.path,
+        img_size=cfg.model.img_size,
+        batch_size=cfg.batch_size,
+        drop_last=True,
+    )
 
-    shutil.rmtree(path_fake, ignore_errors=True)
-    shutil.rmtree(path_real, ignore_errors=True)
-    shutil.rmtree(path_real_lm, ignore_errors=True)
-    shutil.rmtree(path_ground_truth_lm, ignore_errors=True)
+    print(
+        f"Generating sample outputs of `{cfg.dataset.name}` (with list {cfg.list.name})\n"
+        f"Saving to {output_dir}"
+    )
 
-    path_fake.mkdir(parents=True, exist_ok=True)
-    path_real.mkdir(parents=True, exist_ok=True)
-    path_real_lm.mkdir(parents=True, exist_ok=True)
-    path_ground_truth_lm.mkdir(parents=True, exist_ok=True)
+    # # DEBUG: Only do N batches
+    # import itertools
+    # N = 10
+    # loader = itertools.islice(loader, N)
 
-    print("Generating images ...")
+    # new: src, ref, gt, depth, lm, ang_src, ang_ref
+    # x_src: img, img2, img_lm, img_lm2, lm, gt, torch.tensor(name_angle),torch.tensor(name2_angle)
+    for i, (src, ref, gt, depth, lm, ang_src, ang_ref) in enumerate(tqdm(loader)):
+        src = src.to(device)
+        ref = ref.to(device)
+        gt = gt.to(device)
+        depth = depth.to(device)
+        lm = lm.to(device)
+        ang_src = ang_src.to(device)
+        ang_ref = ang_ref.to(device)
 
-    import itertools
+        depth224 = F.interpolate(
+            depth,  # need to add batch dim
+            size=(224, 224),
+            mode="bilinear",
+            align_corners=False,
+        )
+        # # Broadcast depth to RGB
+        # depth224 = einops.repeat(depth224, "1 h w -> 3 h w")
 
-    from torch.profiler import ProfilerActivity, profile, record_function
+        if cfg.model.masks:
+            masks = depth224
+        else:
+            masks = None
 
-    with profile(
-        activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA], record_shapes=True
-    ) as prof:
-        with record_function("model_inference"):
-            for i, x_src in itertools.islice(
-                enumerate(tqdm(loader, total=len(loader))), 1
-            ):
-                lm = x_src[4]
-                x2_target_lm = x_src[3]
-                x2_target = x_src[1]
+        for j in range(cfg.num_outputs_per_domain):
+            with torch.no_grad():
+                style = nets.style_encoder(src)
+                output = nets.generator(depth, lm, style, masks=masks)
 
-                lm = lm.to(device)
-                x2_target_lm = x2_target_lm.to(device)
-                x2_target = x2_target.to(device)
+            # Convert to image format to save
+            output = (output.clamp(0, 1) * 255.0).to("cpu", torch.uint8)
 
-                N = x2_target_lm.size(0)  # batch-size
-                if cfg.model.masks:
-                    masks = x2_target_lm
-                else:
-                    masks = None
+            minibatch = src.size(0)
+            for k in range(minibatch):
+                # dataset sample index = base batch img index + sample index in batch
+                sample_idx = i * cfg.batch_size + (k + 1)
+                # output index
+                output_idx = j + 1
+                basename = f"{sample_idx:04}_{output_idx:02}.png"
+                write_png(output[k], str(output_dir / basename))
 
-                for j in range(cfg.num_outputs_per_domain):
-                    x1_source = x_src[0]
-                    x1_source = x1_source.to(device)
-
-                    with torch.no_grad():
-                        s_trg = nets.style_encoder(x1_source)
-                        x_fake = nets.generator(x2_target_lm, lm, s_trg, masks=masks)
-
-                    # save generated images to calculate FID later
-                    for k in range(N):
-                        idx1 = i * cfg.batch_size + (k + 1)
-                        idx2 = j + 1
-                        basename = "%.4i_%.2i.png" % (idx1, idx2)
-                        filename = path_fake / basename
-                        filename2 = path_real / basename
-                        filename3 = path_real_lm / basename
-                        filename4 = path_ground_truth_lm / basename
-
-                        utils_lm.save_image(x_fake[k], ncol=1, filename=filename)
-                        utils_lm.save_image(x1_source[k], ncol=1, filename=filename2)
-                        utils_lm.save_image(x2_target_lm[k], ncol=1, filename=filename3)
-                        utils_lm.save_image(x2_target[k], ncol=1, filename=filename4)
-
-    print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
+    print("Generation finished")
 
 
 @hydra.main(
