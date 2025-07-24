@@ -17,37 +17,8 @@ def read_rgb(path):
     return img
 
 
-# Crop image by 20px on the right, pad 10px on the top and resize into original.
-# NOTE: Why is this done?
-def preprocess(img: Float[Tensor, "c h w"]) -> Float[Tensor, "c h w"]:
-    c, h, w = img.shape
-    # To 256x256
-    if (h, w) != (256, 256):
-        img = F.interpolate(
-            img.unsqueeze(0),  # need to add batch dim
-            size=(256, 256),
-            mode="bilinear",
-            align_corners=False,
-        ).squeeze(0)
-
-    # Shave 20 pixels off the right edge image. Creates a 236x256 image
-    cropped_img = img[:, :, :-20]
-    # Pad top of image with 10 pixels of RGB
-    img = F.pad(cropped_img, (0, 0, 10, 0), mode="constant", value=0)
-
-    # Resize back to original size
-    img = F.interpolate(
-        img.unsqueeze(0),  # need to add batch dim
-        size=(h, w),
-        mode="bilinear",
-        align_corners=False,
-    ).squeeze(0)
-    return img
-
-
-class SrcRefGtDepthLmAnglesDataset(data.Dataset):
+class SrcRefGtAnglesDataset(data.Dataset):
     root_path: Path
-    depth_lm_root_path: Path
     samples_src: list[Path]
     samples_ref: list[Path]
     samples_gt: list[Path]
@@ -57,25 +28,16 @@ class SrcRefGtDepthLmAnglesDataset(data.Dataset):
     def __init__(
         self,
         root_path,
-        depth_lm_root_path,
         list_path,
         transform=None,
     ):
         self.root_path = Path(root_path)
-        self.depth_lm_root_path = Path(depth_lm_root_path)
         self.samples_src = []
         self.samples_ref = []
         self.samples_gt = []
         self.angles_src = []
         self.angles_ref = []
         self.transform = transform
-
-        # Check if depth-lm generated dir exists
-        if not (self.depth_lm_root_path.exists() and self.depth_lm_root_path.is_dir()):
-            raise Exception(
-                f"Depth and landmark image directory not found at {self.depth_lm_root_path.absolute()}.\n"
-                "Generate the images using the provided script `generate_depth_lm.py`"
-            )
 
         print(f"Processing sample list at {list_path}")
         with open(list_path) as F:
@@ -114,54 +76,46 @@ class SrcRefGtDepthLmAnglesDataset(data.Dataset):
         Float[Tensor, "3 256 256"],
         # Ground truth sample (RGB)
         Float[Tensor, "3 256 256"],
-        # Depth render
-        Float[Tensor, "1 256 256"],
-        # Landmarks (RGB)
-        Float[Tensor, "3 256 256"],
         # source angle and ref angle (0-dim)
         Float[Tensor, ""],
         Float[Tensor, ""],
+        # Src sample path
+        str,
+        # Ref sample path
+        str,
+        # Ground truth sample path
+        str,
     ]:
-        src = read_rgb(self.root_path / self.samples_src[idx])
-        ref = read_rgb(self.root_path / self.samples_ref[idx])
-        gt = read_rgb(self.root_path / self.samples_gt[idx])
+        src_path = self.root_path / self.samples_src[idx]
+        ref_path = self.root_path / self.samples_ref[idx]
+        gt_path = self.root_path / self.samples_gt[idx]
 
-        sample_idx = idx + 1
-        pair_name = f"{sample_idx:04}.png"
-        depth = read_rgb(self.depth_lm_root_path / "depth" / pair_name)
-        lm = read_rgb(self.depth_lm_root_path / "lm" / pair_name)
+        src = read_rgb(src_path)
+        ref = read_rgb(ref_path)
+        gt = read_rgb(gt_path)
 
         src_ang = torch.tensor(self.angles_src[idx], dtype=torch.long)
         ref_ang = torch.tensor(self.angles_ref[idx], dtype=torch.long)
-
-        # NOTE: Why is this done?
-        # depth = preprocess(depth)
-        # lm = preprocess(lm)
-
-        # Broadcast depth to RGB
-        depth = einops.repeat(depth, "1 h w -> 3 h w")
 
         if self.transform is not None:
             src = self.transform(src)
             ref = self.transform(ref)
             gt = self.transform(gt)
-            depth = self.transform(depth)
-            lm = self.transform(lm)
 
         return (
             src,
             ref,
             gt,
-            depth,
-            lm,
             src_ang,
             ref_ang,
+            str(src_path),
+            str(ref_path),
+            str(gt_path),
         )
 
 
 def get_data_loader(
     root_path,
-    depth_lm_root_path,
     list_path,
     img_size=256,
     batch_size=32,
@@ -177,9 +131,8 @@ def get_data_loader(
         ]
     )
 
-    ds = SrcRefGtDepthLmAnglesDataset(
+    ds = SrcRefGtAnglesDataset(
         root_path,
-        depth_lm_root_path,
         list_path,
         transform=transform,
     )

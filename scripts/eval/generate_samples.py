@@ -14,11 +14,18 @@ import einops
 import hydra
 import torch
 import torch.nn.functional as F
+from jaxtyping import Float
 from omegaconf import DictConfig
+from torch import Tensor
 from torchvision.io import write_png
+from torchvision.utils import save_image
 from tqdm import tqdm
 
+from deca.decalib.datasets import detectors
+from deca.decalib.deca import DECA
+from deca.decalib.utils.config import cfg as deca_cfg
 from pasl.data import get_data_loader
+from pasl.render_deca import render_depth_lm_batch
 from pasl.solver_lm_perceptual import Solver
 from pasl.utils import set_seed
 
@@ -26,25 +33,14 @@ from pasl.utils import set_seed
 @torch.no_grad()
 def generate_samples(
     nets,
+    deca,
+    face_detector,
+    loader,
     cfg,
     device,
 ):
     output_dir: Path = Path(cfg.output_dir) / "eval" / str(cfg.output_label)
-    if output_dir.is_dir():
-        print("Output directory already exists. Aborting.")
-        return
     output_dir.mkdir(parents=True, exist_ok=True)
-
-    depth_lm_root_path = Path(cfg.output_dir) / "dataset" / f"{cfg.list.name}"
-    loader = get_data_loader(
-        root_path=cfg.dataset.root_path,
-        depth_lm_root_path=depth_lm_root_path,
-        list_path=cfg.list.path,
-        img_size=cfg.model.img_size,
-        batch_size=cfg.batch_size,
-        drop_last=True,
-    )
-
     print(
         f"Generating sample outputs of `{cfg.dataset.name}` (with list {cfg.list.name})\n"
         f"Saving to {output_dir}"
@@ -55,28 +51,18 @@ def generate_samples(
     # N = 10
     # loader = itertools.islice(loader, N)
 
-    # new: src, ref, gt, depth, lm, ang_src, ang_ref
-    # x_src: img, img2, img_lm, img_lm2, lm, gt, torch.tensor(name_angle),torch.tensor(name2_angle)
-    for i, (src, ref, gt, depth, lm, ang_src, ang_ref) in enumerate(tqdm(loader)):
-        src = src.to(device)
-        ref = ref.to(device)
-        gt = gt.to(device)
-        depth = depth.to(device)
-        lm = lm.to(device)
-        ang_src = ang_src.to(device)
-        ang_ref = ang_ref.to(device)
+    for i, minibatch in enumerate(tqdm(loader)):
+        src, ref, gt, ang_src, ang_ref, src_path, ref_path, gt_path = minibatch
+        src, ref, gt = src.to(device), ref.to(device), gt.to(device)
+        ang_src, ang_ref = ang_src.to(device), ang_ref.to(device)
 
-        depth224 = F.interpolate(
-            depth,  # need to add batch dim
-            size=(224, 224),
-            mode="bilinear",
-            align_corners=False,
+        depth, lm = render_depth_lm_batch(
+            deca, face_detector, src_path, ref_path, device
         )
-        # # Broadcast depth to RGB
-        # depth224 = einops.repeat(depth224, "1 h w -> 3 h w")
+        depth = einops.repeat(depth, "b 1 h w -> b 3 h w")
 
         if cfg.model.masks:
-            masks = depth224
+            masks = depth
         else:
             masks = None
 
@@ -85,7 +71,7 @@ def generate_samples(
                 style = nets.style_encoder(src)
                 output = nets.generator(depth, lm, style, masks=masks)
 
-            # Convert to image format to save
+            # Convert to RGB byte image format to save
             output = (output.clamp(0, 1) * 255.0).to("cpu", torch.uint8)
 
             minibatch = src.size(0)
@@ -100,6 +86,35 @@ def generate_samples(
     print("Generation finished")
 
 
+def generate_debug_grid(
+    nets,
+    deca,
+    face_detector,
+    loader,
+    cfg,
+    device,
+):
+    minibatch = next(iter(loader))
+    src, ref, gt, ang_src, ang_ref, src_path, ref_path, gt_path = minibatch
+    src, ref, gt = src.to(device), ref.to(device), gt.to(device)
+    ang_src, ang_ref = ang_src.to(device), ang_ref.to(device)
+
+    # DEBUG: Generate our own depth and LM
+    depth, lm = render_depth_lm_batch(deca, face_detector, src_path, ref_path, device)
+    depth = einops.repeat(depth, "b 1 h w -> b 3 h w")
+
+    with torch.no_grad():
+        style = nets.style_encoder(src)
+        output = nets.generator(
+            depth, lm, style, masks=(depth if cfg.model.masks else None)
+        )
+
+    # Tile on grid
+    images = [src, ref, depth, lm, output]
+    grid = einops.rearrange(images, "img b c h w -> c (b h) (img w)")
+    save_image(grid, f"debug_grid_{cfg.batch_size}.png")
+
+
 @hydra.main(
     version_base=None, config_path="../../configs/", config_name="base_generate"
 )
@@ -107,9 +122,23 @@ def main(cfg: DictConfig):
     set_seed(cfg.seed)
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
+    loader = get_data_loader(
+        root_path=cfg.dataset.root_path,
+        list_path=cfg.list.path,
+        img_size=cfg.model.img_size,
+        batch_size=cfg.batch_size,
+        drop_last=True,
+    )
+
+    deca_cfg.model.use_tex = False
+    deca_cfg.model.extract_tex = True
+    deca = DECA(config=deca_cfg, device=device)
+    face_detector = detectors.FAN(device=device)
     solver = Solver(cfg, device)
     solver.load_from_path(cfg.model.nets_ema_path)
-    generate_samples(solver.nets_ema, cfg, device)
+    # DEBUG: Outputs all the images for a single batch (src, ref, gt, depth, lm, output)
+    generate_debug_grid(solver.nets_ema, deca, face_detector, loader, cfg, device)
+    # generate_samples(solver.nets_ema, deca, face_detector, loader, cfg, device)
 
 
 if __name__ == "__main__":
