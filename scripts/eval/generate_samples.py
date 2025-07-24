@@ -25,7 +25,7 @@ from deca.decalib.datasets import detectors
 from deca.decalib.deca import DECA
 from deca.decalib.utils.config import cfg as deca_cfg
 from pasl.data import get_data_loader
-from pasl.render_deca import render_depth_lm_batch
+import pasl.render
 from pasl.solver_lm_perceptual import Solver
 from pasl.utils import set_seed
 
@@ -56,7 +56,7 @@ def generate_samples(
         src, ref, gt = src.to(device), ref.to(device), gt.to(device)
         ang_src, ang_ref = ang_src.to(device), ang_ref.to(device)
 
-        depth, lm = render_depth_lm_batch(
+        depth, lm = pasl.render.depth_from_src_ref_paths(
             deca, face_detector, src_path, ref_path, device
         )
         depth = einops.repeat(depth, "b 1 h w -> b 3 h w")
@@ -99,8 +99,7 @@ def generate_debug_grid(
     src, ref, gt = src.to(device), ref.to(device), gt.to(device)
     ang_src, ang_ref = ang_src.to(device), ang_ref.to(device)
 
-    # DEBUG: Generate our own depth and LM
-    depth, lm = render_depth_lm_batch(deca, face_detector, src_path, ref_path, device)
+    depth, lm = pasl.render.depth_from_src_ref_paths(deca, face_detector, src_path, ref_path, device)
     depth = einops.repeat(depth, "b 1 h w -> b 3 h w")
 
     with torch.no_grad():
