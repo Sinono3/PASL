@@ -1,6 +1,6 @@
-[submodule "src/3DDFA_V2"]
-	path = src/3DDFA_V2
+[submodule "TDDFA_V2"]
+	path = src/TDDFA
 	url = https://github.com/cleardusk/3DDFA_V2
-[submodule "src/deca"]
+[submodule "DECA"]
 	path = src/deca
 	url = https://github.com/Sinono3/DECA
