@@ -12,9 +12,12 @@ from pathlib import Path
 
 import torch
 import torch.nn as nn
+from jaxtyping import Float
 from tensorboardX import SummaryWriter
+from torch import Tensor
 
 import pasl.utils_lm as utils
+
 from .model_lm_talking import build_model
 
 
@@ -25,7 +28,7 @@ class Solver(nn.Module):
         self.device = device
         self.nets, self.nets_ema = build_model(cfg)
         self.writer = SummaryWriter(
-            Path(cfg.output_dir) / "log" / "test_reconstruction"
+            Path(cfg.globals.output_dir) / "log" / "test_reconstruction"
         )
 
         for name, module in self.nets.items():
@@ -46,6 +49,28 @@ class Solver(nn.Module):
         pickle = torch.load(path, map_location=self.device)
         self.nets_ema.generator.load_state_dict(pickle["generator"])
         self.nets_ema.style_encoder.load_state_dict(pickle["style_encoder"])
-        # Just in case.......
-        self.nets_ema.generator.to(self.device)
-        self.nets_ema.style_encoder.to(self.device)
+
+    @torch.no_grad()
+    def sample(
+        self,
+        src: Float[torch.Tensor, "b c h w"],
+        depth: Float[torch.Tensor, "b c h w"],
+        lm: Float[torch.Tensor, "b c h w"],
+    ):
+        src = src.to(self.device)
+        depth = depth.to(self.device)
+        lm = lm.to(self.device)
+
+        if self.cfg.model.masks:
+            masks = lm
+        else:
+            masks = None
+
+        x_fake = self.nets_ema.generator(depth, lm, src, masks=masks)
+        return x_fake
+
+    @torch.no_grad()
+    def extract(self, src: Float[Tensor, "b c h w"]) -> Float[Tensor, "b embed"]:
+        src = src.to(self.device)
+        s_ref = self.nets_ema.style_encoder(src)
+        return s_ref

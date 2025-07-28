@@ -1,0 +1,9 @@
+seed: 777
+num_workers: 0
+output_dir: output
+
+# Hydra output config
+hydra:
+  run:
+    dir: ${output_dir}/${now:%Y-%m-%d}/${now:%H-%M-%S}
+

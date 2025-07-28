@@ -1,0 +1,3 @@
+batch_size: ???
+num_outputs: 1
+output_label: ${model.name}_${list.name}

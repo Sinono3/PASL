@@ -1,0 +1,3 @@
+defaults:
+  - globals: defaults
+  - model: demo

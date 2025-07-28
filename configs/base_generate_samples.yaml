@@ -1,0 +1,5 @@
+defaults:
+  - globals: defaults
+  - model: ???
+  - list: ???
+  - generate: eval

@@ -26,12 +26,8 @@ def embeds_from_src_ref_paths(
     Float[Tensor, "batch channel height width"],
 ]:
     assert len(src_path_list) == len(ref_path_list)
-    src_td_og = datasets.TestData(
-        src_path_list, face_detector, iscrop=True, sample_step=10
-    )
-    ref_td_og = datasets.TestData(
-        ref_path_list, face_detector, iscrop=True, sample_step=10
-    )
+    src_td_og = datasets.TestData(src_path_list, face_detector, iscrop=True)
+    ref_td_og = datasets.TestData(ref_path_list, face_detector, iscrop=True)
 
     # AoS -> SoA
     src_td = {"image": []}
@@ -67,7 +63,7 @@ def embeds_from_src_ref_paths(
     new_embeds["pose"] = ref_embeds["pose"]
     new_embeds["cam"] = ref_embeds["cam"]
     new_embeds["images"] = ref_embeds["images"]
-    
+
     # # DEBUG: add offset to camera according to batch index
     # x = torch.zeros(batchsize, device=device, dtype=torch.float32)
     # y = torch.arange(batchsize, device=device, dtype=torch.float32)
