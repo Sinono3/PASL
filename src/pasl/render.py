@@ -9,7 +9,7 @@ from deca.decalib.datasets import datasets, detectors
 from deca.decalib.deca import DECA
 
 
-# Combines embeds from source and reference images.
+# Combines embeds from source and reference image paths.
 # Returns: new embeds, and 3x3 matrices for transformation to use when rendering.
 def embeds_from_src_ref_paths(
     deca: DECA,
@@ -28,23 +28,102 @@ def embeds_from_src_ref_paths(
     assert len(src_path_list) == len(ref_path_list)
     src_td_og = datasets.TestData(src_path_list, face_detector, iscrop=True)
     ref_td_og = datasets.TestData(ref_path_list, face_detector, iscrop=True)
+    return embeds_from_src_ref_td(deca, face_detector, src_td_og, ref_td_og, device)
+
+
+# Combines embeds from source and reference images.
+# Returns: new embeds, and 3x3 matrices for transformation to use when rendering.
+def embeds_from_src_ref_imgs(
+    deca: DECA,
+    face_detector: detectors.FAN,
+    src_imgs: list[Float[Tensor, "height width channel"]],
+    ref_imgs: list[Float[Tensor, "height width channel"]],
+    device: torch.device | str,
+) -> tuple[
+    # Embeddings
+    Float[Tensor, "batch embed"],
+    # Transforms (3x3)
+    Float[Tensor, "batch rows cols"],
+    # Original images (RGB)
+    Float[Tensor, "batch channel height width"],
+]:
+    assert len(src_imgs) == len(ref_imgs)
+    src_td = [
+        datasets.TestData.img_to_td(src_img, face_detector, iscrop=True)
+        for src_img in src_imgs
+    ]
+    ref_td = [
+        datasets.TestData.img_to_td(ref_img, face_detector, iscrop=True)
+        for ref_img in ref_imgs
+    ]
+    return embeds_from_src_ref_td(deca, face_detector, src_td, ref_td, device)
+
+
+# Combines embeds from a single image (no merging of source, reference)
+# Returns: new embeds, and 3x3 matrices for transformation to use when rendering.
+def embeds_from_imgs(
+    deca: DECA,
+    face_detector: detectors.FAN,
+    # Should be in BGR
+    imgs: list[Float[Tensor, "height width channel"]],
+    device: torch.device | str,
+) -> tuple[
+    # Embeddings
+    Float[Tensor, "batch embed"],
+    # Transforms (3x3)
+    Float[Tensor, "batch rows cols"],
+    # Original images (RGB)
+    Float[Tensor, "batch channel height width"],
+]:
+    td_og = [
+        datasets.TestData.img_to_td(
+            img.cpu().numpy(),
+            face_detector,
+            iscrop=True,
+        )
+        for img in imgs
+    ]
 
     # AoS -> SoA
-    src_td = {"image": []}
-    ref_td = {"image": [], "tform": [], "original_image": []}
-    for td in src_td_og:
-        src_td["image"].append(td["image"])
-    for td in ref_td_og:
-        ref_td["image"].append(td["image"])
-        ref_td["tform"].append(td["tform"])
-        ref_td["original_image"].append(td["original_image"])
-    # Convert to Torch (stack tensors along batch dimension)
-    src_td["image"] = einops.pack(src_td["image"], "* c h w")[0].to(device)
-    ref_td["image"] = einops.pack(ref_td["image"], "* c h w")[0].to(device)
-    ref_td["tform"] = einops.pack(ref_td["tform"], "* rows cols")[0].to(device)
-    ref_td["original_image"] = einops.pack(ref_td["original_image"], "* c h w")[0].to(
-        device
-    )
+    td = {}
+    # Stack tensors along batch dimension
+    td["image"] = einops.pack([td["image"] for td in td_og], "* c h w")[0].to(device)  # fmt: off
+    td["tform"] = einops.pack([td["tform"] for td in td_og], "* rows cols")[0].to(device)  # fmt: off
+    td["original_image"] = einops.pack([td["original_image"] for td in td_og], "* c h w")[0].to(device)  # fmt: off
+
+    with torch.no_grad():
+        embeds = deca.encode(td["image"])
+
+    tform_inv_t = torch.linalg.inv(td["tform"]).transpose(-2, -1)
+    return embeds, tform_inv_t, td["original_image"]
+
+
+# Combines embeds from source and reference image in TestData format.
+# Returns: new embeds, and 3x3 matrices for transformation to use when rendering.
+def embeds_from_src_ref_td(
+    deca: DECA,
+    face_detector: detectors.FAN,
+    src_td_og: datasets.TestData | list[dict],
+    ref_td_og: datasets.TestData | list[dict],
+    device: torch.device | str,
+) -> tuple[
+    # Embeddings
+    Float[Tensor, "batch embed"],
+    # Transforms (3x3)
+    Float[Tensor, "batch rows cols"],
+    # Original images (RGB)
+    Float[Tensor, "batch channel height width"],
+]:
+    assert len(src_td_og) == len(ref_td_og)
+
+    # AoS -> SoA
+    src_td = {}
+    ref_td = {}
+    # Stack tensors along batch dimension
+    src_td["image"] = einops.pack([td["image"] for td in src_td_og], "* c h w")[0].to(device)  # fmt: off
+    ref_td["image"] = einops.pack([td["image"] for td in ref_td_og], "* c h w")[0].to(device)  # fmt: off
+    ref_td["tform"] = einops.pack([td["tform"] for td in ref_td_og], "* rows cols")[0].to(device)  # fmt: off
+    ref_td["original_image"] = einops.pack([td["original_image"] for td in ref_td_og], "* c h w")[0].to(device)  # fmt: off
 
     with torch.no_grad():
         src_embeds = deca.encode(src_td["image"])
