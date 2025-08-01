@@ -5,8 +5,8 @@ import torch.nn.functional as F
 from jaxtyping import Float
 from torch import Tensor
 
-from deca.decalib.datasets import datasets, detectors
-from deca.decalib.deca import DECA
+from decalib.datasets import datasets, detectors
+from decalib.deca import DECA
 
 
 # Combines embeds from source and reference image paths.
@@ -19,7 +19,7 @@ def embeds_from_src_ref_paths(
     device: torch.device | str,
 ) -> tuple[
     # Embeddings
-    Float[Tensor, "batch embed"],
+    dict[str, any],
     # Transforms (3x3)
     Float[Tensor, "batch rows cols"],
     # Original images (RGB)
@@ -108,7 +108,7 @@ def embeds_from_src_ref_td(
     device: torch.device | str,
 ) -> tuple[
     # Embeddings
-    Float[Tensor, "batch embed"],
+    dict[str, any],
     # Transforms (3x3)
     Float[Tensor, "batch rows cols"],
     # Original images (RGB)
@@ -157,7 +157,7 @@ def embeds_from_src_ref_td(
 
 def depth_from_embeds(
     deca: DECA,
-    embeds: Float[Tensor, "batch embed"],
+    embeds: dict[str, any],
     tform: Float[Tensor, "batch rows cols"],
     original_images: Float[Tensor, "batch channel height width"],
     device: torch.device | str,

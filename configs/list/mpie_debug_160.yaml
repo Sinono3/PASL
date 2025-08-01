@@ -1,3 +1,3 @@
-name: mpie_debug_short
-path: ./datasets/mpie_debug_short.txt
+name: mpie_debug_160
+path: ./datasets/mpie_debug_160.txt
 root_path: /media/avlab/2tb/RFG_pncc_landmark/mpie/crop_256/

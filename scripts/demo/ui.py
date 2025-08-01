@@ -25,36 +25,12 @@ from deca.decalib.datasets import datasets, detectors
 from deca.decalib.deca import DECA
 from deca.decalib.utils import util
 from deca.decalib.utils.config import cfg as deca_cfg
-from pasl.solver_lm_perceptual import Solver
+from pasl.model import PaslModel
 
 deca = None
 solver = None
 fa = None
 face_detector = None
-
-
-def np_hwc255_to_tensor(img: np.ndarray) -> Float[Tensor, "c h w"]:
-    assert isinstance(img, np.ndarray), (
-        "the img type is {}, but ndarray expected".format(type(img))
-    )
-
-    # Try to convert BGR to RGB. If it fails, the tensor is (most likely) already in RGB
-    try:
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    except:
-        img = img
-
-    img = torch.from_numpy(img.transpose((2, 0, 1)))
-    return (img.to(torch.float32) / 255.0).unsqueeze(0)
-
-
-def tensor_to_np_hwc255(
-    tensor: Float[Tensor, "b c h w"],
-) -> Float[np.ndarray, "b h w c"]:
-    # [0,1] -> [0,255]
-    img = (tensor * 255.0).to("cpu", torch.uint8)
-    #  CHW -> HWC, torch->numpy
-    return img.permute(0, 2, 3, 1).numpy()
 
 
 def align_face(rimg, landmarks):
@@ -329,7 +305,7 @@ def serve_gradio():
 @hydra.main(version_base=None, config_path="../../configs/", config_name="base_demo")
 def main(cfg: DictConfig):
     global solver, fa, deca, face_detector
-    solver = Solver(cfg, "cuda")
+    solver = PaslModel(cfg, "cuda")
     solver.load_from_path(cfg.model.nets_ema_path)
     fa = face_alignment.FaceAlignment(
         face_alignment.LandmarksType._2D, flip_input=True, device="cuda"

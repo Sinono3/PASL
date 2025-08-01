@@ -1,17 +1,15 @@
 from pathlib import Path
 
-import einops
 import torch
 import torch.linalg
-import torch.nn.functional as F
-from jaxtyping import Float
+from jaxtyping import Float, UInt8
 from torch import Tensor
 from torch.utils import data
 from torchvision import io, transforms
 
 
-def read_rgb(path):
-    img = io.read_image(str(path))
+def read_rgb(path) -> Float[Tensor, "c h w"]:
+    img = io.read_image(str(path), io.ImageReadMode.RGB)
     # uint8->float, [0-255]->[0-1]
     img = img.to(torch.float32) / 255.0
     return img
@@ -77,8 +75,8 @@ class SrcRefGtAnglesDataset(data.Dataset):
         # Ground truth sample (RGB)
         Float[Tensor, "3 256 256"],
         # source angle and ref angle (0-dim)
-        Float[Tensor, ""],
-        Float[Tensor, ""],
+        UInt8[Tensor, ""],
+        UInt8[Tensor, ""],
         # Src sample path
         str,
         # Ref sample path
@@ -94,8 +92,8 @@ class SrcRefGtAnglesDataset(data.Dataset):
         ref = read_rgb(ref_path)
         gt = read_rgb(gt_path)
 
-        src_ang = torch.tensor(self.angles_src[idx], dtype=torch.long)
-        ref_ang = torch.tensor(self.angles_ref[idx], dtype=torch.long)
+        src_ang = torch.tensor(self.angles_src[idx], dtype=torch.uint8)
+        ref_ang = torch.tensor(self.angles_ref[idx], dtype=torch.uint8)
 
         if self.transform is not None:
             src = self.transform(src)

@@ -21,12 +21,12 @@ from torchvision.io import write_png
 from torchvision.utils import save_image
 from tqdm import tqdm
 
-from deca.decalib.datasets import detectors
-from deca.decalib.deca import DECA
-from deca.decalib.utils.config import cfg as deca_cfg
+from decalib.datasets import detectors
+from decalib.deca import DECA
+from decalib.utils.config import cfg as deca_cfg
 from pasl.data import get_data_loader
 import pasl.render
-from pasl.solver_lm_perceptual import Solver
+from pasl.core.model import PaslModel
 from pasl.utils import set_seed
 
 
@@ -39,7 +39,9 @@ def generate_samples(
     cfg,
     device,
 ):
-    output_dir: Path = Path(cfg.globals.output_dir) / "eval" / str(cfg.output_label)
+    output_dir: Path = (
+        Path(cfg.globals.output_dir) / "eval" / str(cfg.generate.output_label)
+    )
     output_dir.mkdir(parents=True, exist_ok=True)
     print(f"Generating sample outputs with list {cfg.list.name}")
     print(f"Saving to {output_dir}")
@@ -137,16 +139,17 @@ def main(cfg: DictConfig):
         drop_last=True,
     )
 
+    deca_cfg.rasterizer_type = "standard"
     deca_cfg.model.use_tex = False
     deca_cfg.model.extract_tex = True
     deca = DECA(config=deca_cfg, device=device)
     face_detector = detectors.FAN(device=device)
-    solver = Solver(cfg, device)
+    solver = PaslModel(cfg, device)
     solver.load_from_path(cfg.model.nets_ema_path)
 
     # DEBUG: Outputs all the images for a single batch (src, ref, gt, depth, lm, output)
-    generate_debug_grid(solver.nets_ema, deca, face_detector, loader, cfg, device)
-    # generate_samples(solver.nets_ema, deca, face_detector, loader, cfg, device)
+    # generate_debug_grid(solver.nets_ema, deca, face_detector, loader, cfg, device)
+    generate_samples(solver.nets_ema, deca, face_detector, loader, cfg, device)
 
 
 if __name__ == "__main__":

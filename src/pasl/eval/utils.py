@@ -1,41 +1,67 @@
 import os
+from pathlib import Path
 
 import torch
 from torch.utils.data.dataset import Dataset
 from torchvision.io import read_image
 
-from .ir50 import IR_50
+from pasl.data import read_rgb
 
 
 # Loads the eval images. RETURNS IN BGR
 class EvalDataset(Dataset):
-    def __init__(self, fake_dir, gt_dir, real_dir):
-        self.fake_dir = fake_dir
-        self.gt_dir = gt_dir
-        self.real_dir = real_dir
+    samples_real: list[Path]
+    samples_gt: list[Path]
+    samples_fake: list[Path]
 
-        # Store the union of all the filenames
-        # This is because corresponding generated fake image, gt image, and real image
-        # must share the same filename.
-        self.files = list(
-            set(os.listdir(fake_dir))
-            | set(os.listdir(gt_dir))
-            | set(os.listdir(real_dir))
-        )
-        self.files.sort()
+    def __init__(self, root_dir, list_path, fake_dir):
+        self.root_path = Path(root_dir)
+        self.fake_dir = Path(fake_dir)
+
+        self.samples_real = []
+        self.samples_gt = []
+        self.samples_fake = []
+
+        print(f"Processing sample list at {list_path}")
+        with open(list_path) as F:
+            for line_num, line in enumerate(F):
+                try:
+                    line = line.strip("\n")
+                    line_split = line.split(" ")
+                    src_path = Path(line_split[0])
+                    ref_path = Path(line_split[1])
+                except Exception:
+                    print(f"Error reading dataset list on line {line_num}")
+                    continue
+
+                sample_idx = line_num + 1
+                # NOTE: only support for one output, currently.
+                output_idx = 1
+                output_basename = f"{sample_idx:04}_{output_idx:02}.png"
+
+                abs_src_path = self.root_path / src_path
+                abs_fake_path = self.fake_dir / output_basename
+                abs_ref_path = self.root_path / ref_path
+                # print(f"{abs_src_path}: {abs_src_path.exists()}")
+                # print(f"{abs_fake_path}: {abs_fake_path.exists()}")
+                # print(f"{abs_ref_path}: {abs_ref_path.exists()}")
+
+                if (
+                    abs_src_path.is_file()
+                    and abs_fake_path.is_file()
+                    and abs_ref_path.is_file()
+                ):
+                    self.samples_real.append(src_path)
+                    self.samples_fake.append(output_basename)
+                    self.samples_gt.append(ref_path)
 
     def __len__(self):
-        return len(self.files)
+        return len(self.samples_real)
 
     def __getitem__(self, idx):
-        file = self.files[idx]
-        fake_img_path = os.path.join(self.fake_dir, file)
-        gt_img_path = os.path.join(self.gt_dir, file)
-        real_img_path = os.path.join(self.real_dir, file)
-
-        fake_img: torch.Tensor = read_image(fake_img_path)
-        gt_img: torch.Tensor = read_image(gt_img_path)
-        real_img: torch.Tensor = read_image(real_img_path)
+        real_img: torch.Tensor = read_rgb(self.root_path / self.samples_real[idx])
+        fake_img: torch.Tensor = read_rgb(self.fake_dir / self.samples_fake[idx])
+        gt_img: torch.Tensor = read_rgb(self.root_path / self.samples_gt[idx])
 
         # (RGB, H, W) -> (BGR, H, W)
         # The models expect BGR (they were trained with images from cv.imread,
@@ -43,18 +69,4 @@ class EvalDataset(Dataset):
         fake_img = fake_img[[2, 1, 0], :, :]
         gt_img = gt_img[[2, 1, 0], :, :]
         real_img = real_img[[2, 1, 0], :, :]
-        return file, fake_img, gt_img, real_img
-
-
-def load_ir50(label: str, path: os.PathLike, device: torch.device):
-    INPUT_SIZE = [112, 112]
-    model = IR_50(INPUT_SIZE)
-
-    print(f"Loading {label} model (MS1M-IR50) at '{path}'...")
-    if os.path.isfile(path):
-        model.load_state_dict(torch.load(path, map_location=device))
-    else:
-        raise Exception(f"Model not found at '{path}'")
-
-    model.to(device)
-    return model
+        return fake_img, gt_img, real_img

@@ -1,10 +1,18 @@
+from pathlib import Path
+
+import einops
+import hydra
 import torch
 import torch.nn as nn
+from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 from torchvision import transforms as T
 from tqdm import tqdm
 
-from eval.utils import EvalDataset, load_ir50
+from pasl.eval.utils import EvalDataset
+from pasl.pae import PAE
+from pasl.utils import set_seed
+from pasl.ir50 import load_ir50
 
 device = torch.device("cpu")
 # if torch.backends.mps.is_available():
@@ -13,14 +21,13 @@ if torch.cuda.is_available():
     device = torch.device("cuda:0")
 
 
-def calculate_csim_for_all_tasks(fake_dir, gt_dir, real_dir):
+@torch.no_grad()
+def calculate_csim_for_all_tasks(dataloader):
     criterion = load_ir50(
         "Arcface", "./weights/arcface/backbone_ir50_ms1m_epoch63.pth", device
     )
+    criterion.to(device)
     criterion.eval()
-
-    dataset = EvalDataset(fake_dir, gt_dir, real_dir)
-    dataloader = DataLoader(dataset, batch_size=8, num_workers=4)
 
     fake_gt_csim_list = []
     fake_real_csim_list = []
@@ -29,15 +36,15 @@ def calculate_csim_for_all_tasks(fake_dir, gt_dir, real_dir):
     resize = T.Resize((112, 112), T.InterpolationMode.BILINEAR, antialias=True)
 
     # 遍历两个文件夹中的图像并计算旋转误差
-    for _label, fake_img, gt_img, real_img in tqdm(dataloader, desc="Processing"):
+    for fake_img, gt_img, real_img in tqdm(dataloader, desc="Processing"):
         fake_img = fake_img.to(device, torch.float32)
         gt_img = gt_img.to(device, torch.float32)
         real_img = real_img.to(device, torch.float32)
 
         # Resize and normalize image to [0-1]
-        fake_img = resize(fake_img) / 255.0
-        gt_img = resize(gt_img) / 255.0
-        real_img = resize(real_img) / 255.0
+        fake_img = resize(fake_img)
+        gt_img = resize(gt_img)
+        real_img = resize(real_img)
 
         with torch.torch.no_grad():
             fake_embs = criterion(fake_img)
@@ -58,9 +65,15 @@ def calculate_csim_for_all_tasks(fake_dir, gt_dir, real_dir):
     print("real_gt_csim:", torch.cat(real_gt_csim_list).mean().item())
 
 
-if __name__ == "__main__":
-    fake_image_dir = "./output/eval/mpieOLD/fake"
-    gt_image_dir = "./output/eval/mpieOLD/ground_truth"
-    real_image_dir = "./output/eval/mpieOLD/real"
+@hydra.main(version_base=None, config_path="../../configs/", config_name="base_eval")
+def main(cfg: DictConfig):
+    set_seed(cfg.globals.seed)
+    dataset = EvalDataset(cfg.list.root_path, cfg.list.path, cfg.eval.fake_dir)
+    dataloader = DataLoader(
+        dataset, batch_size=cfg.eval.batch_size, num_workers=cfg.globals.num_workers
+    )
+    calculate_csim_for_all_tasks(dataloader)
 
-    calculate_csim_for_all_tasks(fake_image_dir, gt_image_dir, real_image_dir)
+
+if __name__ == "__main__":
+    main()

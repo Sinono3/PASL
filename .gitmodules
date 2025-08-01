@@ -1,6 +1,6 @@
 [submodule "TDDFA_V2"]
-	path = src/TDDFA
-	url = https://github.com/cleardusk/3DDFA_V2
+	path = external/tddfa
+	url = https://github.com/Sinono3/tddfa
 [submodule "DECA"]
-	path = src/deca
+	path = external/deca
 	url = https://github.com/Sinono3/DECA

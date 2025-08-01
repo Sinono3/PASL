@@ -12,24 +12,22 @@ from pathlib import Path
 
 import torch
 import torch.nn as nn
+
+# from lightning.fabric import Fabric
 from jaxtyping import Float
-from tensorboardX import SummaryWriter
 from torch import Tensor
 
 import pasl.utils_lm as utils
 
-from .model_lm_talking import build_model
+from pasl.core.architecture import build_model
 
 
-class Solver(nn.Module):
+class PaslModel(nn.Module):
     def __init__(self, cfg, device):
         super().__init__()
         self.cfg = cfg
         self.device = device
         self.nets, self.nets_ema = build_model(cfg)
-        self.writer = SummaryWriter(
-            Path(cfg.globals.output_dir) / "log" / "test_reconstruction"
-        )
 
         for name, module in self.nets.items():
             utils.print_network(module, name)
@@ -53,11 +51,11 @@ class Solver(nn.Module):
     @torch.no_grad()
     def sample(
         self,
-        src: Float[torch.Tensor, "b c h w"],
+        src_style: Float[torch.Tensor, "b embed"],
         depth: Float[torch.Tensor, "b c h w"],
         lm: Float[torch.Tensor, "b c h w"],
     ):
-        src = src.to(self.device)
+        src_style = src_style.to(self.device)
         depth = depth.to(self.device)
         lm = lm.to(self.device)
 
@@ -66,7 +64,7 @@ class Solver(nn.Module):
         else:
             masks = None
 
-        x_fake = self.nets_ema.generator(depth, lm, src, masks=masks)
+        x_fake = self.nets_ema.generator(depth, lm, src_style, masks=masks)
         return x_fake
 
     @torch.no_grad()

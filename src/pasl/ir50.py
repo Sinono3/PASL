@@ -1,3 +1,7 @@
+# Most code was taken from ZhaoJ9014/face.evoLVe (backbone/model_irse.py)
+# https://github.com/ZhaoJ9014/face.evoLVe/blob/a9897bda52bdbb8d7c2fe28f1e21827dfd69d14e/backbone/model_irse.py
+
+import os
 import torch
 import torch.nn as nn
 from torch.nn import (
@@ -221,4 +225,18 @@ def IR_50(input_size):
     """Constructs a ir-50 model."""
     model = Backbone(input_size, 50, "ir")
 
+    return model
+
+
+def load_ir50(label: str, path: str | os.PathLike, device: torch.device | str):
+    INPUT_SIZE = [112, 112]
+    model = IR_50(INPUT_SIZE)
+
+    print(f"Loading {label} model (IR50) at '{path}'...")
+    if os.path.isfile(path):
+        model.load_state_dict(torch.load(path, map_location=device))
+    else:
+        raise Exception(f"Model not found at '{path}'")
+
+    model.to(device)
     return model
