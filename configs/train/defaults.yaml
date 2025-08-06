@@ -1,0 +1,73 @@
+# model architecture config
+img_size: 256
+num_domains: 2
+style_dim: 128
+multi: false
+masks: false
+self_att: true
+
+# training config
+total_iters: 2000000
+resume_iter: 0
+
+# training losses and hyperparameters
+loss: perceptual
+dataset: mpie
+pix2pix: false
+finetune: false
+multi_discriminator: true
+vgg19_recon_loss: true
+style_cyc: true
+face_encoder: "pae" # other options: vggface2, arcface, magface
+lambda_pixel: 1
+lambda_fm: 1
+lambda_style_cyc: 1
+lambda_id: 1
+lambda_reg: 1
+ds_iter: 10
+w_hpf: 1
+
+# training hyperparameters:
+randcrop_prob: 0.5
+batch_size: 4
+val_batch_size: 8
+lr: 1e-4
+f_lr: 1e-6
+beta1: 0.0
+beta2: 0.99
+weight_decay: 1e-4
+
+
+
+outputs per domain:
+num_outs_per_domain: 1
+
+
+
+# solver config:
+mode: train
+
+# config for some random model???
+config: configs/mb1_120x120.yml
+
+
+# dirs:
+sample_dir: expr/0705
+checkpoint_dir: /media/avlab/2tb/Aldo/PASL/expr_reggie/pasl_vox2_self
+eval_dir: ./media/avlab/2tb/Aldo/PASL/0705_vox2
+result_dir: expr/results
+ref_dir: assets/representative/celeba_hq/ref
+inp_dir: assets/representative/custom/female
+out_dir: assets/representative/celeba_hq/src/female
+
+
+# frequencies:
+print_every: 1
+sample_every: 10
+save_every: 1000
+eval_every: 1000000
+
+
+# globals:
+num_workers: 0
+seed: 777

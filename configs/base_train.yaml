@@ -1,0 +1,6 @@
+defaults:
+  - globals: defaults
+  - model: defaults
+  - train: defaults
+  - list@train_list: ???
+  - list@val_list: ???

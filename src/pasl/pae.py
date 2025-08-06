@@ -57,16 +57,17 @@ class PAE(nn.Module):
             path = paths[id]
             self.models[idx] = load_ir50(id, path, "cpu")
 
+    @staticmethod
     def _angles_to_model_idx(a, b):
         a = abs(a)
         b = abs(b)
         # Test for each face orientation
-        a_f = a <= 30
+        a_f = a < 30
         a_p = a >= 60
-        a_s = 30 <= a <= 60
-        b_f = b <= 30
+        a_s = 30 <= a < 60
+        b_f = b < 30
         b_p = b >= 60
-        b_s = 30 <= b <= 60
+        b_s = 30 <= b < 60
 
         if b_f and a_f:
             return PAE.LABEL_TO_IDX["ff"]
@@ -81,7 +82,8 @@ class PAE(nn.Module):
         else:
             return PAE.LABEL_TO_IDX["sp"]
 
-    def P2sRt(self, P):
+    @staticmethod
+    def P2sRt(P):
         """decompositing camera matrix P.
         Args:
             P: (3, 4). Affine Camera Matrix.
@@ -147,7 +149,7 @@ class PAE(nn.Module):
             return None
 
         P1 = param[:12].reshape(3, -1).copy()  # camera matrix
-        s, R1, t3d = self.P2sRt(P1)
+        s, R1, t3d = PAE.P2sRt(P1)
         angle = self.matrix2angle(R1)
         yaw, pitch, roll = angle
         return yaw * (180 / math.pi)
@@ -193,6 +195,7 @@ class PAE(nn.Module):
         self,
         angles: Float[Tensor, "b 2"],
         mask: Bool[Tensor, " b"],
+        angle_to_model_idx_fn=None,
     ) -> list[Int64[Tensor, " batch_idx"]]:
         """
         Should contain two angles per batch,
@@ -209,9 +212,12 @@ class PAE(nn.Module):
         """
         assert angles.size(1) == 2, "angles dimension should be two"
 
+        if angle_to_model_idx_fn is None:
+            angle_to_model_idx_fn = PAE._angles_to_model_idx
+
         samples_to_idx = torch.tensor(
             [
-                PAE._angles_to_model_idx(batch[0].item(), batch[1].item())
+                angle_to_model_idx_fn(batch[0].item(), batch[1].item())
                 for batch in angles
             ]
         )

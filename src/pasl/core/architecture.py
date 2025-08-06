@@ -11,7 +11,6 @@ Creative Commons, PO Box 1866, Mountain View, CA 94042, USA.
 import copy
 import math
 from typing import Optional
-from munch import Munch
 import numpy as np
 import torch
 from torch import nn, Tensor
@@ -748,10 +747,14 @@ class Discriminator_img2_pix(nn.Module):
 
 
 def build_model(cfg):
-    generator = Generator(cfg.model.img_size, cfg.model.style_dim, w_hpf=cfg.model.w_hpf)
-
+    generator = Generator(
+        cfg.model.img_size, cfg.model.style_dim, w_hpf=cfg.model.w_hpf
+    )
     style_encoder = StyleEncoder(
-        cfg.model.img_size, cfg.model.style_dim, cfg.model.num_domains, cfg.model.self_att
+        cfg.model.img_size,
+        cfg.model.style_dim,
+        cfg.model.num_domains,
+        cfg.model.self_att,
     )
     discriminator_img = Discriminator_img_pix(
         cfg.model.img_size, cfg.model.num_domains, cfg.model.self_att
@@ -759,19 +762,4 @@ def build_model(cfg):
     discriminator_img2 = Discriminator_img2_pix(
         cfg.model.img_size, cfg.model.num_domains, cfg.model.self_att
     )
-
-    generator_ema = copy.deepcopy(generator)
-
-    style_encoder_ema = copy.deepcopy(style_encoder)
-
-    nets = Munch(
-        generator=generator,
-        style_encoder=style_encoder,
-        discriminator=discriminator_img,
-        discriminator2=discriminator_img2,
-    )
-
-    nets_ema = Munch(generator=generator_ema, style_encoder=style_encoder_ema)
-
-    nets_ema = Munch(generator=generator_ema, style_encoder=style_encoder_ema)
-    return nets, nets_ema
+    return generator, style_encoder, discriminator_img, discriminator_img2

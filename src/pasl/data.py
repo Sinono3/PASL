@@ -77,12 +77,6 @@ class SrcRefGtAnglesDataset(data.Dataset):
         # source angle and ref angle (0-dim)
         UInt8[Tensor, ""],
         UInt8[Tensor, ""],
-        # Src sample path
-        str,
-        # Ref sample path
-        str,
-        # Ground truth sample path
-        str,
     ]:
         src_path = self.root_path / self.samples_src[idx]
         ref_path = self.root_path / self.samples_ref[idx]
@@ -106,9 +100,6 @@ class SrcRefGtAnglesDataset(data.Dataset):
             gt,
             src_ang,
             ref_ang,
-            str(src_path),
-            str(ref_path),
-            str(gt_path),
         )
 
 
@@ -119,6 +110,7 @@ def get_data_loader(
     batch_size=32,
     num_workers=0,
     drop_last=False,
+    shuffle=False,
 ):
     print("Preparing data loader...")
 
@@ -137,8 +129,8 @@ def get_data_loader(
     return data.DataLoader(
         ds,
         batch_size=batch_size,
-        shuffle=False,
+        shuffle=shuffle,
         num_workers=num_workers,
-        pin_memory=True,
         drop_last=drop_last,
+        pin_memory=True,
     )

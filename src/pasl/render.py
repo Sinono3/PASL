@@ -19,7 +19,7 @@ def embeds_from_src_ref_paths(
     device: torch.device | str,
 ) -> tuple[
     # Embeddings
-    dict[str, any],
+    dict[str, torch.Tensor],
     # Transforms (3x3)
     Float[Tensor, "batch rows cols"],
     # Original images (RGB)
@@ -33,21 +33,24 @@ def embeds_from_src_ref_paths(
 
 # Combines embeds from source and reference images.
 # Returns: new embeds, and 3x3 matrices for transformation to use when rendering.
-def embeds_from_src_ref_imgs(
+def embeds_from_src_ref_imgs_batch(
     deca: DECA,
     face_detector: detectors.FAN,
-    src_imgs: list[Float[Tensor, "height width channel"]],
-    ref_imgs: list[Float[Tensor, "height width channel"]],
+    src_imgs: Float[Tensor, "batch height width channel"],
+    ref_imgs: Float[Tensor, "batch height width channel"],
     device: torch.device | str,
 ) -> tuple[
     # Embeddings
-    Float[Tensor, "batch embed"],
+    dict[str, torch.Tensor],
     # Transforms (3x3)
     Float[Tensor, "batch rows cols"],
     # Original images (RGB)
     Float[Tensor, "batch channel height width"],
 ]:
-    assert len(src_imgs) == len(ref_imgs)
+    assert src_imgs.shape == ref_imgs.shape
+    src_imgs = src_imgs.cpu().numpy()
+    ref_imgs = ref_imgs.cpu().numpy()
+
     src_td = [
         datasets.TestData.img_to_td(src_img, face_detector, iscrop=True)
         for src_img in src_imgs
@@ -108,7 +111,7 @@ def embeds_from_src_ref_td(
     device: torch.device | str,
 ) -> tuple[
     # Embeddings
-    dict[str, any],
+    dict[str, torch.Tensor],
     # Transforms (3x3)
     Float[Tensor, "batch rows cols"],
     # Original images (RGB)
@@ -157,11 +160,16 @@ def embeds_from_src_ref_td(
 
 def depth_from_embeds(
     deca: DECA,
-    embeds: dict[str, any],
+    embeds: dict[str, torch.Tensor],
     tform: Float[Tensor, "batch rows cols"],
     original_images: Float[Tensor, "batch channel height width"],
     device: torch.device | str,
-):
+) -> tuple[
+    # Depth
+    Float[Tensor, "b 1 256 256"],
+    # Landmark
+    Float[Tensor, "b c 256 256"],
+]:
     opdict, visdict = deca.decode(
         embeds,
         render_orig=True,
