@@ -1,7 +1,6 @@
 import datetime
 import time
 
-import cv2
 import einops
 import face_alignment
 import hydra
@@ -9,6 +8,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torchvision.utils import save_image
 from decalib.datasets import detectors
 from decalib.deca import DECA
 from decalib.utils.config import cfg as deca_cfg
@@ -26,7 +26,7 @@ if torch.cuda.is_available():
 
 vgg19 = VGG19LOSS().to(device)
 fa = face_alignment.FaceAlignment(
-    face_alignment.LandmarksType._2D, flip_input=True, device="cpu"
+    face_alignment.LandmarksType._2D, flip_input=True, device=device
 )
 
 
@@ -144,6 +144,8 @@ def train(cfg: DictConfig):
 
     print("Start training...")
     start_time = time.time()
+    last_time = time.time()
+    avg_time = None
 
     for i in range(cfg.train.resume_iter, cfg.train.total_iters):
         try:
@@ -173,12 +175,6 @@ def train(cfg: DictConfig):
         depth = einops.repeat(depth, "b 1 h w -> b 3 h w")
         depth = depth.to(device)
         lm = lm.to(device)
-
-        # # DEBUG: output debug image of batch
-        # images = [src, ref, lm, depth]
-        # grid = einops.rearrange(images, "img b c h w -> c (b h) (img w)")
-        # save_image(grid, "output/debug_grid.png")
-        # print("Saved debug image.")
 
         if cfg.model.masks:
             masks = depth
@@ -221,15 +217,24 @@ def train(cfg: DictConfig):
         optims["style_encoder"].step()
 
         # compute moving average of network parameters
+        # TODO: Should we do this every batch?
         moving_average(model.generator, model_ema.generator, beta=0.999)
         moving_average(model.style_encoder, model_ema.style_encoder, beta=0.999)
 
         # print out log info
         if (i + 1) % cfg.train.print_every == 0:
             elapsed = time.time() - start_time
+            batch_time = time.time() - last_time
+            last_time = time.time()
+            avg_time = (
+                (0.7 * avg_time + 0.3 * batch_time)
+                if (avg_time is not None)
+                else batch_time
+            )
             elapsed = str(datetime.timedelta(seconds=elapsed))[:-7]
-            log = "Elapsed time [%s], Iteration [%i/%i], " % (
+            log = "Elapsed time [%s], Avg. [%s] Iteration [%i/%i], " % (
                 elapsed,
+                str(datetime.timedelta(seconds=avg_time)),
                 i + 1,
                 cfg.train.total_iters,
             )
@@ -250,13 +255,21 @@ def train(cfg: DictConfig):
                 # self.writer.add_scalar(key, value, i + 1)
                 pass
 
+        # # DEBUG: output debug image of batch
+        # images = [src, ref, lm, depth]
+        # grid = einops.rearrange(images, "img b c h w -> c (b h) (img w)")
+        # save_image(grid, "output/debug_grid.png")
+        # print("Saved debug image.")
+
         # # generate images for debugging
         # if (i + 1) % cfg.sample_every == 0:
         #     os.makedirs(cfg.sample_dir, exist_ok=True)
         #     utils.debug_image(nets_ema, cfg, inputs=inputs_val, step=i + 1)
+
         # # save model checkpoints
         # if (i + 1) % cfg.save_every == 0:
         #     self._save_checkpoint(step=i + 1)
+
         # # compute FID and LPIPS if necessary
         # if (i + 1) % cfg.eval_every == 0:
         #     calculate_metrics(nets_ema, cfg, i + 1, mode="latent")
@@ -306,6 +319,7 @@ def compute_g_loss(
     facemodel=None,
     pae=None,
 ):
+    batch_size = x1_source.size(0)
     # adversarial loss
     s_trg = model.style_encoder(x1_source)
     x_fake = model.generator(x2_target_lm, lm, s_trg, masks=masks)
@@ -325,48 +339,30 @@ def compute_g_loss(
     loss = nn.MSELoss()
     loss_l2 = loss(x_fake, gt)
 
+    # Identity preservation_loss
     cos = nn.CosineSimilarity(dim=1, eps=1e-6)
-    pae.eval()
-    loss_PAE = []
-    x_fake_s = x_fake.detach().cpu().numpy()  # Convert to NumPy array (batch, C, H, W)
-    x_fake_s = np.transpose(
-        x_fake_s, (0, 2, 3, 1)
-    )  # Change shape from (batch, C, H, W) to (batch, H, W, C)
-    x_source_s = (
-        x1_source.detach().cpu().numpy()
-    )  # Convert to NumPy array (batch, C, H, W)
-    x_source_s = np.transpose(
-        x_source_s, (0, 2, 3, 1)
-    )  # Change shape from (batch, C, H, W) to (batch, H, W, C)
-    # Apply cv2 transformations to each image in the batch
-    x_fake_s = np.array(
-        [cv2.cvtColor(img, cv2.COLOR_RGB2BGR) for img in x_fake_s]
-    )  # Convert RGB to BGR
-    x_fake_s = np.array(
-        [cv2.resize(img, (112, 112)) for img in x_fake_s]
-    )  # Resize all images
-    x_source_s = np.array(
-        [cv2.cvtColor(img, cv2.COLOR_RGB2BGR) for img in x_source_s]
-    )  # Convert RGB to BGR
-    x_source_s = np.array(
-        [cv2.resize(img, (112, 112)) for img in x_source_s]
-    )  # Resize all images
-    x_fake_s = (
-        torch.from_numpy(x_fake_s).permute(0, 3, 1, 2).to(device)
-    )  # Change shape back to (batch, C, H, W)
-    x_source_s = (
-        torch.from_numpy(x_source_s).permute(0, 3, 1, 2).to(device)
-    )  # Change shape back to (batch, C, H, W)
 
-    for i in range(x1_angle.shape[0]):
-        face_encoder = pae.models[angle_to_model_idx(x1_angle[i], x2_angle[i])]
-        real_embs = face_encoder(x_fake_s[i].unsqueeze(0))
-        fake_embs = face_encoder(x_source_s[i].unsqueeze(0))
-        loss_id = torch.mean(1 - cos(real_embs, fake_embs))
-        loss_PAE.append(loss_id)
+    # RGB -> BGR
+    x_fake_s = x_fake[:, [2, 1, 0], :, :]
+    x_source_s = x1_source[:, [2, 1, 0], :, :]
 
-    loss_id_2 = torch.tensor(loss_PAE, device=device)
-    loss_id_2 = loss_id_2.mean()
+    # Resize to 112x112
+    x_fake_s = F.interpolate(x_fake_s, (112, 112), None, mode="bilinear")
+    x_source_s = F.interpolate(x_source_s, (112, 112), None, mode="bilinear")
+
+    match cfg.train.face_encoder:
+        case "pae":
+            pae.eval()
+
+            # TODO: Implement error handling
+            angles_2, _ = einops.pack([x1_angle, x2_angle], "b *")
+            model_idx_to_batches = pae.angles_to_processing_list(
+                angles_2, torch.ones(batch_size, dtype=torch.bool), angle_to_model_idx
+            )
+            real_embs = pae(x_fake_s, model_idx_to_batches)
+            fake_embs = pae(x_source_s, model_idx_to_batches)
+
+    loss_id_2 = (1.0 - cos(real_embs, fake_embs)).mean()
 
     # Style Consistency Loss
     if cfg.train.style_cyc:

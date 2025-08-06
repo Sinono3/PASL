@@ -7,7 +7,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import yaml
-from jaxtyping import Float, Bool, Int64
+from jaxtyping import Num, Float, Bool, Int64
 
 # from lightning.fabric import Fabric
 from torch import Tensor
@@ -193,7 +193,7 @@ class PAE(nn.Module):
 
     def angles_to_processing_list(
         self,
-        angles: Float[Tensor, "b 2"],
+        angles: Num[Tensor, "b 2"],
         mask: Bool[Tensor, " b"],
         angle_to_model_idx_fn=None,
     ) -> list[Int64[Tensor, " batch_idx"]]:
