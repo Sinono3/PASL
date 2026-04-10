@@ -144,7 +144,7 @@ def main(cfg: DictConfig):
     deca_cfg.model.extract_tex = True
     deca = DECA(config=deca_cfg, device=device)
     face_detector = detectors.FAN(device=device)
-    solver = PaslModel(cfg, device)
+    solver = PaslModel(cfg).to(device)
     solver.load_from_path(cfg.model.nets_ema_path)
 
     # DEBUG: Outputs all the images for a single batch (src, ref, gt, depth, lm, output)

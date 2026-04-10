@@ -21,11 +21,11 @@ from torch import Tensor
 from torchvision import transforms
 
 import pasl.render
-from deca.decalib.datasets import datasets, detectors
-from deca.decalib.deca import DECA
-from deca.decalib.utils import util
-from deca.decalib.utils.config import cfg as deca_cfg
-from pasl.model import PaslModel
+from decalib.datasets import datasets, detectors
+from decalib.deca import DECA
+from decalib.utils import util
+from decalib.utils.config import cfg as deca_cfg
+from pasl.core.model import PaslModel
 
 deca = None
 solver = None
@@ -305,7 +305,7 @@ def serve_gradio():
 @hydra.main(version_base=None, config_path="../../configs/", config_name="base_demo")
 def main(cfg: DictConfig):
     global solver, fa, deca, face_detector
-    solver = PaslModel(cfg, "cuda")
+    solver = PaslModel(cfg).to("cuda")
     solver.load_from_path(cfg.model.nets_ema_path)
     fa = face_alignment.FaceAlignment(
         face_alignment.LandmarksType._2D, flip_input=True, device="cuda"

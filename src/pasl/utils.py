@@ -25,6 +25,14 @@ import torchvision
 import torchvision.utils as vutils
 
 
+def set_seed(seed):
+    import random
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
+
 def save_json(json_file, filename):
     with open(filename, "w") as f:
         json.dump(json_file, f, indent=4, sort_keys=False)

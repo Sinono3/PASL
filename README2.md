@@ -10,6 +10,8 @@ In a bash shell:
 ```
 git clone https://github.com/AvLab-CV/PASL
 cd PASL
+git submodule init
+git submodule update --recursive
 uv venv
 source .venv/bin/activate
 uv pip install pip setuptools wheel torch==1.12.1

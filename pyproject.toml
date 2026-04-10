@@ -30,7 +30,7 @@ dependencies = [
     "omegaconf>=2.3.0",
     "face-alignment",
     "lightning>=2.1.4",
-    "deca",
+    "decalib",
     "tddfa",
     "onnx>=1.17.0",
 ]
@@ -44,7 +44,7 @@ torchvision = [
   { index = "pytorch-cu113", marker = "sys_platform == 'linux' or sys_platform == 'win32'"  },
 ]
 face-alignment = { git = "https://github.com/1adrianb/face-alignment", rev = "c49ca6fef8ffa95a0ac7ce698e0b752ac91f6d42" }
-deca = { path = "external/deca", editable = true }
+decalib = { path = "external/deca", editable = true }
 tddfa = { path = "external/tddfa", editable = true }
 
 [[tool.uv.index]]
